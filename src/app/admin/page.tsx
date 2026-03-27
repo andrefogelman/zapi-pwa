@@ -23,6 +23,14 @@ interface GroupRow {
   group_id: string;
   subject: string;
   subject_owner: string;
+  group_lid?: string;
+}
+
+interface FetchedGroup {
+  group_id: string;
+  subject: string;
+  subject_owner: string;
+  group_lid: string;
 }
 
 type Tab = "zapi" | "neura" | "grupos";
@@ -39,8 +47,13 @@ export default function AdminPage() {
 
   // Groups state
   const [groups, setGroups] = useState<GroupRow[]>([]);
-  const [newGroup, setNewGroup] = useState<GroupRow>({ group_id: "", subject: "", subject_owner: "" });
+  const [newGroup, setNewGroup] = useState<GroupRow>({ group_id: "", subject: "", subject_owner: "", group_lid: "" });
   const [groupMsg, setGroupMsg] = useState("");
+
+  // Fetch from WhatsApp state
+  const [fetchedGroups, setFetchedGroups] = useState<FetchedGroup[]>([]);
+  const [fetching, setFetching] = useState(false);
+  const [fetchMsg, setFetchMsg] = useState("");
 
   useEffect(() => {
     loadConfig();
@@ -100,13 +113,62 @@ export default function AdminPage() {
   async function addGroup(e: React.FormEvent) {
     e.preventDefault();
     setGroupMsg("");
-    const { error } = await supabase.from("grupos_autorizados").insert(newGroup);
+    const { error } = await supabase.from("grupos_autorizados").upsert(newGroup, { onConflict: "group_id" });
     if (error) {
       setGroupMsg(`Erro: ${error.message}`);
       return;
     }
-    setNewGroup({ group_id: "", subject: "", subject_owner: "" });
+    setNewGroup({ group_id: "", subject: "", subject_owner: "", group_lid: "" });
     setGroupMsg("Grupo adicionado!");
+    loadGroups();
+  }
+
+  async function fetchFromWhatsApp() {
+    setFetching(true);
+    setFetchMsg("");
+    try {
+      const res = await fetch("/api/groups/fetch");
+      const data = await res.json();
+      if (data.error) {
+        setFetchMsg(`Erro: ${data.error}`);
+      } else {
+        setFetchedGroups(data.groups);
+        setFetchMsg(`${data.groups.length} grupos encontrados no WhatsApp`);
+      }
+    } catch {
+      setFetchMsg("Erro ao buscar grupos");
+    }
+    setFetching(false);
+  }
+
+  async function importGroup(g: FetchedGroup) {
+    const { error } = await supabase.from("grupos_autorizados").upsert({
+      group_id: g.group_id,
+      subject: g.subject,
+      subject_owner: g.subject_owner,
+      group_lid: g.group_lid,
+    }, { onConflict: "group_id" });
+    if (error) {
+      setFetchMsg(`Erro ao importar: ${error.message}`);
+      return;
+    }
+    loadGroups();
+    setFetchedGroups((prev) => prev.filter((x) => x.group_id !== g.group_id));
+  }
+
+  async function importAllGroups() {
+    let imported = 0;
+    for (const g of fetchedGroups) {
+      const { error } = await supabase.from("grupos_autorizados").upsert({
+        group_id: g.group_id,
+        subject: g.subject,
+        subject_owner: g.subject_owner,
+        group_lid: g.group_lid,
+      }, { onConflict: "group_id" });
+      if (!error) imported++;
+    }
+    setFetchMsg(`${imported} grupos importados/atualizados`);
+    setFetchedGroups([]);
     loadGroups();
   }
 
@@ -237,31 +299,77 @@ export default function AdminPage() {
       {/* Groups Tab */}
       {tab === "grupos" && (
         <>
+          {/* Fetch from WhatsApp */}
+          <div style={{ marginBottom: "1.5rem", padding: "1rem", border: "1px solid #ddd", borderRadius: "4px" }}>
+            <h3 style={{ margin: "0 0 0.5rem" }}>Buscar do WhatsApp</h3>
+            <button onClick={fetchFromWhatsApp} disabled={fetching} style={{ padding: "0.5rem 1rem", marginRight: "0.5rem" }}>
+              {fetching ? "Buscando..." : "Buscar Grupos"}
+            </button>
+            {fetchedGroups.length > 0 && (
+              <button onClick={importAllGroups} style={{ padding: "0.5rem 1rem", background: "#4CAF50", color: "#fff", border: "none", borderRadius: "4px" }}>
+                Importar Todos ({fetchedGroups.length})
+              </button>
+            )}
+            {fetchMsg && <p style={{ margin: "0.5rem 0 0" }}>{fetchMsg}</p>}
+
+            {fetchedGroups.length > 0 && (
+              <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem", fontSize: "0.85rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #ccc" }}>
+                    <th style={{ textAlign: "left", padding: "0.3rem" }}>Nome</th>
+                    <th style={{ textAlign: "left", padding: "0.3rem" }}>Group ID</th>
+                    <th style={{ textAlign: "left", padding: "0.3rem" }}>LID</th>
+                    <th style={{ padding: "0.3rem" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fetchedGroups.map((g) => (
+                    <tr key={g.group_id} style={{ borderBottom: "1px solid #eee" }}>
+                      <td style={{ padding: "0.3rem" }}>{g.subject}</td>
+                      <td style={{ padding: "0.3rem", fontSize: "0.75rem", wordBreak: "break-all" }}>{g.group_id}</td>
+                      <td style={{ padding: "0.3rem", fontSize: "0.75rem" }}>{g.group_lid || "—"}</td>
+                      <td style={{ padding: "0.3rem" }}>
+                        <button onClick={() => importGroup(g)} style={{ padding: "0.2rem 0.5rem", fontSize: "0.8rem" }}>Importar</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Manual add */}
+          <h3>Adicionar manualmente</h3>
           <form onSubmit={addGroup} style={{ marginBottom: "1rem" }}>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
               <input placeholder="group_id (ex: 120363...@g.us)" value={newGroup.group_id} onChange={(e) => setNewGroup({ ...newGroup, group_id: e.target.value })} required style={{ flex: 1, padding: "0.5rem", minWidth: "200px" }} />
-              <input placeholder="subject" value={newGroup.subject} onChange={(e) => setNewGroup({ ...newGroup, subject: e.target.value })} required style={{ flex: 1, padding: "0.5rem", minWidth: "150px" }} />
-              <input placeholder="subject_owner" value={newGroup.subject_owner} onChange={(e) => setNewGroup({ ...newGroup, subject_owner: e.target.value })} required style={{ flex: 1, padding: "0.5rem", minWidth: "150px" }} />
+              <input placeholder="subject" value={newGroup.subject} onChange={(e) => setNewGroup({ ...newGroup, subject: e.target.value })} required style={{ flex: 1, padding: "0.5rem", minWidth: "120px" }} />
+              <input placeholder="subject_owner" value={newGroup.subject_owner} onChange={(e) => setNewGroup({ ...newGroup, subject_owner: e.target.value })} required style={{ flex: 1, padding: "0.5rem", minWidth: "120px" }} />
+              <input placeholder="LID (opcional)" value={newGroup.group_lid || ""} onChange={(e) => setNewGroup({ ...newGroup, group_lid: e.target.value })} style={{ flex: 1, padding: "0.5rem", minWidth: "100px" }} />
               <button type="submit" style={{ padding: "0.5rem 1rem" }}>Adicionar</button>
             </div>
             {groupMsg && <p>{groupMsg}</p>}
           </form>
 
+          {/* Groups table */}
+          <h3>Grupos Autorizados ({groups.length})</h3>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "2px solid #333" }}>
-                <th style={{ textAlign: "left", padding: "0.5rem" }}>Group ID</th>
                 <th style={{ textAlign: "left", padding: "0.5rem" }}>Subject</th>
+                <th style={{ textAlign: "left", padding: "0.5rem" }}>Group ID</th>
                 <th style={{ textAlign: "left", padding: "0.5rem" }}>Owner</th>
+                <th style={{ textAlign: "left", padding: "0.5rem" }}>LID</th>
                 <th style={{ padding: "0.5rem" }}></th>
               </tr>
             </thead>
             <tbody>
               {groups.map((g) => (
                 <tr key={g.group_id} style={{ borderBottom: "1px solid #ddd" }}>
-                  <td style={{ padding: "0.5rem", fontSize: "0.8rem", wordBreak: "break-all" }}>{g.group_id}</td>
                   <td style={{ padding: "0.5rem" }}>{g.subject}</td>
-                  <td style={{ padding: "0.5rem", fontSize: "0.8rem" }}>{g.subject_owner}</td>
+                  <td style={{ padding: "0.5rem", fontSize: "0.75rem", wordBreak: "break-all" }}>{g.group_id}</td>
+                  <td style={{ padding: "0.5rem", fontSize: "0.75rem" }}>{g.subject_owner}</td>
+                  <td style={{ padding: "0.5rem", fontSize: "0.75rem" }}>{g.group_lid || "—"}</td>
                   <td style={{ padding: "0.5rem" }}>
                     <button onClick={() => removeGroup(g.group_id)} style={{ color: "red", cursor: "pointer", background: "none", border: "none" }}>Remover</button>
                   </td>

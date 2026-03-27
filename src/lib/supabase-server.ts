@@ -7,10 +7,12 @@ export function getSupabaseServer() {
 
 export async function isGroupAuthorized(groupId: string): Promise<boolean> {
   const supabase = getSupabaseServer();
+
+  // Check by group_id (JID) or group_lid (LID)
   const { data, error } = await supabase
     .from("grupos_autorizados")
     .select("group_id")
-    .eq("group_id", groupId)
+    .or(`group_id.eq.${groupId},group_lid.eq.${groupId}`)
     .maybeSingle();
 
   if (error) {
