@@ -3,6 +3,7 @@ import { getSupabaseServer } from "./supabase-server";
 export interface ZapiConfig {
   instance_id: string;
   token: string;
+  client_token: string;
   webhook_token: string;
   connected_phone: string;
   my_phones: string[];
@@ -33,6 +34,7 @@ export async function getZapiConfig(): Promise<ZapiConfig> {
   cachedConfig = {
     instance_id: data.instance_id,
     token: data.token,
+    client_token: data.client_token ?? "",
     webhook_token: data.webhook_token,
     connected_phone: data.connected_phone,
     my_phones: data.my_phones ?? [],
