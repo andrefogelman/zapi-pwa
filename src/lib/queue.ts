@@ -33,7 +33,9 @@ export async function enqueueJob(job: TranscribeJob): Promise<boolean> {
 export async function dequeueJob(): Promise<TranscribeJob | null> {
   const raw = await redis.rpop(QUEUE_KEY);
   if (!raw) return null;
-  return JSON.parse(raw as string) as TranscribeJob;
+  // @upstash/redis auto-deserializes JSON, so raw is already an object
+  if (typeof raw === "string") return JSON.parse(raw) as TranscribeJob;
+  return raw as TranscribeJob;
 }
 
 export async function getQueueLength(): Promise<number> {
