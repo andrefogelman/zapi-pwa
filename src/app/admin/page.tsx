@@ -31,6 +31,7 @@ interface FetchedGroup {
   subject: string;
   subject_owner: string;
   group_lid: string;
+  _phone?: string;
 }
 
 type Tab = "zapi" | "neura" | "grupos";
@@ -143,33 +144,52 @@ export default function AdminPage() {
     setFetching(false);
   }
 
-  async function importGroup(g: FetchedGroup) {
-    const { error } = await supabase.from("grupos_autorizados").upsert({
-      group_id: g.group_id,
-      subject: g.subject,
-      subject_owner: g.subject_owner,
-      group_lid: g.group_lid,
-    }, { onConflict: "group_id" });
-    if (error) {
-      setFetchMsg(`Erro ao importar: ${error.message}`);
-      return;
+  async function enrichAndImport(g: FetchedGroup & { _phone?: string }): Promise<boolean> {
+    // Fetch metadata to get subject_owner and LID
+    let enriched = { ...g };
+    if (g._phone) {
+      try {
+        const metaRes = await fetch(`/api/groups/metadata?phone=${encodeURIComponent(g._phone)}`);
+        if (metaRes.ok) {
+          const meta = await metaRes.json();
+          enriched = { ...enriched, ...meta };
+        }
+      } catch { /* use basic data */ }
     }
-    loadGroups();
-    setFetchedGroups((prev) => prev.filter((x) => x.group_id !== g.group_id));
+
+    const { error } = await supabase.from("grupos_autorizados").upsert({
+      group_id: enriched.group_id,
+      subject: enriched.subject,
+      subject_owner: enriched.subject_owner || "",
+      group_lid: enriched.group_lid || "",
+    }, { onConflict: "group_id" });
+
+    if (error) {
+      setFetchMsg(`Erro ao importar ${enriched.subject}: ${error.message}`);
+      return false;
+    }
+    return true;
+  }
+
+  async function importGroup(g: FetchedGroup & { _phone?: string }) {
+    setFetchMsg(`Importando ${g.subject}...`);
+    const ok = await enrichAndImport(g);
+    if (ok) {
+      setFetchMsg(`${g.subject} importado!`);
+      loadGroups();
+      setFetchedGroups((prev) => prev.filter((x) => x.group_id !== g.group_id));
+    }
   }
 
   async function importAllGroups() {
     let imported = 0;
-    for (const g of fetchedGroups) {
-      const { error } = await supabase.from("grupos_autorizados").upsert({
-        group_id: g.group_id,
-        subject: g.subject,
-        subject_owner: g.subject_owner,
-        group_lid: g.group_lid,
-      }, { onConflict: "group_id" });
-      if (!error) imported++;
+    const total = fetchedGroups.length;
+    for (let i = 0; i < total; i++) {
+      setFetchMsg(`Importando ${i + 1}/${total}: ${fetchedGroups[i].subject}...`);
+      const ok = await enrichAndImport(fetchedGroups[i]);
+      if (ok) imported++;
     }
-    setFetchMsg(`${imported} grupos importados/atualizados`);
+    setFetchMsg(`${imported}/${total} grupos importados/atualizados`);
     setFetchedGroups([]);
     loadGroups();
   }
