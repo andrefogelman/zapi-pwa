@@ -1,30 +1,39 @@
 import { getZapiConfig } from "./config";
 import { isGroupAuthorized } from "./supabase-server";
 
-export interface ZapiPayload {
-  body: {
-    fromMe: boolean;
-    phone: string;
-    chatLid?: string;
-    connectedPhone: string;
-    instanceId: string;
-    isGroup: boolean;
-    chatName: string;
-    messageId: string;
-    audio?: {
-      audioUrl: string;
-      seconds: number;
-    };
+export interface ZapiBody {
+  fromMe: boolean;
+  phone: string;
+  chatLid?: string;
+  connectedPhone: string;
+  instanceId: string;
+  isGroup: boolean;
+  chatName: string;
+  messageId: string;
+  audio?: {
+    audioUrl: string;
+    seconds: number;
   };
 }
+
+// Z-API sends fields at root level (no wrapper), but n8n wrapped them in "body"
+export type ZapiPayload = ZapiBody | { body: ZapiBody };
 
 export type FilterResult =
   | { action: "skip"; reason: string }
   | { action: "process"; audioUrl: string; seconds: number; phoneOrLid: string };
 
+function extractBody(payload: ZapiPayload): ZapiBody {
+  // Support both direct Z-API format (fields at root) and n8n-wrapped (fields in .body)
+  if ("body" in payload && typeof payload.body === "object" && payload.body !== null && "phone" in payload.body) {
+    return payload.body as ZapiBody;
+  }
+  return payload as ZapiBody;
+}
+
 export async function filterMessage(payload: ZapiPayload): Promise<FilterResult> {
   const config = await getZapiConfig();
-  const { body } = payload;
+  const body = extractBody(payload);
   const phone = body.phone ?? "";
   const chatLid = body.chatLid ?? "";
 

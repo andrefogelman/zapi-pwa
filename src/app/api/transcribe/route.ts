@@ -37,12 +37,13 @@ export async function POST(request: NextRequest) {
     }
 
     const rawPayload = await request.json();
-    console.log("[debug] payload keys:", JSON.stringify(Object.keys(rawPayload)));
-    console.log("[debug] payload sample:", JSON.stringify(rawPayload).substring(0, 500));
     const payload: ZapiPayload = rawPayload;
 
+    // Extract messageId from either root or body
+    const messageId = ("messageId" in rawPayload ? rawPayload.messageId : rawPayload.body?.messageId) as string | undefined;
+
     // Dedup check
-    if (isDuplicate(payload.body.messageId)) {
+    if (messageId && isDuplicate(messageId)) {
       return NextResponse.json({ status: "duplicate" });
     }
 
