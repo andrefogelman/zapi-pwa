@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
@@ -10,15 +10,31 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const supabase = getSupabaseBrowser();
+
+  // Check if already logged in (e.g. returning from OAuth)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.push("/admin");
+    });
+
+    // Listen for auth state changes (OAuth implicit flow returns hash fragment)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") {
+        router.push("/admin");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   async function handleGoogle() {
     setLoading(true);
     setError("");
-    const supabase = getSupabaseBrowser();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/admin`,
+        redirectTo: `${window.location.origin}/admin/login`,
       },
     });
     if (error) {
@@ -32,7 +48,6 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    const supabase = getSupabaseBrowser();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
