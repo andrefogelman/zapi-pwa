@@ -1,33 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getZapiConfig } from "@/lib/config";
 import { filterMessage, type ZapiPayload } from "@/lib/filters";
-import { transcribeAudio, summarizeText } from "@/lib/openai";
-import { sendMessage } from "@/lib/zapi";
-
-export const maxDuration = 60;
-
-const AUDIO_THRESHOLD_SECONDS = 40;
-const SIGNATURE = "\n\n_Transcrição por IA by Andre 😜_";
-
-// Simple deduplication: LRU of last 100 messageIds
-// Note: on Vercel serverless, this Set resets per cold start. It helps within
-// a warm instance but won't catch duplicates across different isolates.
-const recentMessages = new Set<string>();
-const MAX_RECENT = 100;
-
-function isDuplicate(messageId: string): boolean {
-  if (recentMessages.has(messageId)) return true;
-  recentMessages.add(messageId);
-  if (recentMessages.size > MAX_RECENT) {
-    const first = recentMessages.values().next().value;
-    if (first) recentMessages.delete(first);
-  }
-  return false;
-}
+import { enqueueJob } from "@/lib/queue";
 
 export async function POST(request: NextRequest) {
   try {
-    // Auth check — webhook_token from Supabase config (optional: if empty, skip check)
+    // Auth check
     const config = await getZapiConfig();
     if (config.webhook_token) {
       const token = request.headers.get("x-token");
@@ -39,12 +17,10 @@ export async function POST(request: NextRequest) {
     const rawPayload = await request.json();
     const payload: ZapiPayload = rawPayload;
 
-    // Extract messageId from either root or body
+    // Extract messageId
     const messageId = ("messageId" in rawPayload ? rawPayload.messageId : rawPayload.body?.messageId) as string | undefined;
-
-    // Dedup check
-    if (messageId && isDuplicate(messageId)) {
-      return NextResponse.json({ status: "duplicate" });
+    if (!messageId) {
+      return NextResponse.json({ status: "skipped", reason: "no messageId" });
     }
 
     // Filter
@@ -54,37 +30,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "skipped", reason: result.reason });
     }
 
-    // Download audio
-    const audioResponse = await fetch(result.audioUrl);
-    if (!audioResponse.ok) {
-      console.error(`Audio download failed: ${audioResponse.status}`);
-      return NextResponse.json({ status: "ok" });
-    }
-    const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+    // Enqueue (Redis handles dedup)
+    const enqueued = await enqueueJob({
+      audioUrl: result.audioUrl,
+      seconds: result.seconds,
+      phoneOrLid: result.phoneOrLid,
+      messageId,
+      enqueuedAt: Date.now(),
+    });
 
-    // Transcribe
-    const transcription = await transcribeAudio(audioBuffer);
-    if (!transcription) {
-      console.error("Empty transcription");
-      return NextResponse.json({ status: "ok" });
+    if (!enqueued) {
+      return NextResponse.json({ status: "duplicate" });
     }
 
-    // Build message
-    let message: string;
-    if (result.seconds >= AUDIO_THRESHOLD_SECONDS) {
-      const summary = await summarizeText(transcription);
-      message = `*Resumo:*\n${summary}\n\n*Original:*\n${transcription}${SIGNATURE}`;
-    } else {
-      message = `${transcription}${SIGNATURE}`;
-    }
+    // Trigger worker (fire and forget)
+    const workerUrl = `https://${process.env.VERCEL_URL || "zapi-transcriber.vercel.app"}/api/worker`;
+    fetch(workerUrl, { method: "POST" }).catch(() => {});
 
-    // Send via Z-API
-    await sendMessage(result.phoneOrLid, message);
-
-    return NextResponse.json({ status: "ok" });
+    return NextResponse.json({ status: "queued" });
   } catch (error) {
-    const msg = error instanceof Error ? `${error.message}\n${error.stack}` : String(error);
+    const msg = error instanceof Error ? error.message : String(error);
     console.error("Transcribe route error:", msg);
-    return NextResponse.json({ status: "error", message: msg }, { status: 200 });
+    return NextResponse.json({ status: "ok" });
   }
 }
