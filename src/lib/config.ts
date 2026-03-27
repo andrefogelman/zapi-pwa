@@ -8,6 +8,10 @@ export interface ZapiConfig {
   connected_phone: string;
   my_phones: string[];
   my_lids: string[];
+  neura_prompt: string;
+  neura_model: string;
+  neura_temperature: number;
+  neura_top_p: number;
 }
 
 let cachedConfig: ZapiConfig | null = null;
@@ -39,6 +43,10 @@ export async function getZapiConfig(): Promise<ZapiConfig> {
     connected_phone: data.connected_phone,
     my_phones: data.my_phones ?? [],
     my_lids: data.my_lids ?? [],
+    neura_prompt: data.neura_prompt ?? "",
+    neura_model: data.neura_model ?? "gpt-4o",
+    neura_temperature: data.neura_temperature ?? 0.5,
+    neura_top_p: data.neura_top_p ?? 0.5,
   };
   cacheTime = now;
 

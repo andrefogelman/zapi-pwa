@@ -8,10 +8,15 @@ interface ZapiConfigRow {
   id: string;
   instance_id: string;
   token: string;
+  client_token: string;
   webhook_token: string;
   connected_phone: string;
   my_phones: string[];
   my_lids: string[];
+  neura_prompt: string;
+  neura_model: string;
+  neura_temperature: number;
+  neura_top_p: number;
 }
 
 interface GroupRow {
@@ -20,9 +25,12 @@ interface GroupRow {
   subject_owner: string;
 }
 
+type Tab = "zapi" | "neura" | "grupos";
+
 export default function AdminPage() {
   const supabase = getSupabaseBrowser();
   const router = useRouter();
+  const [tab, setTab] = useState<Tab>("zapi");
 
   // Config state
   const [config, setConfig] = useState<ZapiConfigRow | null>(null);
@@ -49,27 +57,44 @@ export default function AdminPage() {
     if (data) setGroups(data);
   }
 
-  async function saveConfig(e: React.FormEvent) {
-    e.preventDefault();
+  async function saveConfig(fields: Partial<ZapiConfigRow>) {
     if (!config) return;
     setConfigSaving(true);
     setConfigMsg("");
 
     const { error } = await supabase
       .from("zapi_config")
-      .update({
-        instance_id: config.instance_id,
-        token: config.token,
-        webhook_token: config.webhook_token,
-        connected_phone: config.connected_phone,
-        my_phones: config.my_phones,
-        my_lids: config.my_lids,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ ...fields, updated_at: new Date().toISOString() })
       .eq("id", config.id);
 
     setConfigSaving(false);
     setConfigMsg(error ? `Erro: ${error.message}` : "Salvo!");
+    setTimeout(() => setConfigMsg(""), 3000);
+  }
+
+  async function saveZapiConfig(e: React.FormEvent) {
+    e.preventDefault();
+    if (!config) return;
+    await saveConfig({
+      instance_id: config.instance_id,
+      token: config.token,
+      client_token: config.client_token,
+      webhook_token: config.webhook_token,
+      connected_phone: config.connected_phone,
+      my_phones: config.my_phones,
+      my_lids: config.my_lids,
+    });
+  }
+
+  async function saveNeuraConfig(e: React.FormEvent) {
+    e.preventDefault();
+    if (!config) return;
+    await saveConfig({
+      neura_prompt: config.neura_prompt,
+      neura_model: config.neura_model,
+      neura_temperature: config.neura_temperature,
+      neura_top_p: config.neura_top_p,
+    });
   }
 
   async function addGroup(e: React.FormEvent) {
@@ -96,6 +121,15 @@ export default function AdminPage() {
   }
 
   const inputStyle = { display: "block" as const, width: "100%", padding: "0.5rem", marginTop: "0.25rem", marginBottom: "0.75rem" };
+  const tabStyle = (t: Tab) => ({
+    padding: "0.5rem 1.5rem",
+    cursor: "pointer" as const,
+    border: "none",
+    borderBottom: tab === t ? "3px solid #333" : "3px solid transparent",
+    background: "none",
+    fontWeight: tab === t ? "bold" as const : "normal" as const,
+    fontSize: "1rem",
+  });
 
   return (
     <main style={{ maxWidth: 700, margin: "2rem auto", fontFamily: "sans-serif", padding: "0 1rem" }}>
@@ -104,19 +138,26 @@ export default function AdminPage() {
         <button onClick={handleLogout} style={{ padding: "0.5rem 1rem" }}>Sair</button>
       </div>
 
-      <hr />
+      {/* Tabs */}
+      <div style={{ borderBottom: "1px solid #ddd", marginBottom: "1.5rem" }}>
+        <button style={tabStyle("zapi")} onClick={() => setTab("zapi")}>Z-API</button>
+        <button style={tabStyle("neura")} onClick={() => setTab("neura")}>Neura (IA)</button>
+        <button style={tabStyle("grupos")} onClick={() => setTab("grupos")}>Grupos ({groups.length})</button>
+      </div>
 
-      {/* Z-API Config Section */}
-      <h2>Configuração Z-API</h2>
-      {config && (
-        <form onSubmit={saveConfig}>
+      {/* Z-API Config Tab */}
+      {tab === "zapi" && config && (
+        <form onSubmit={saveZapiConfig}>
           <label>Instance ID</label>
           <input style={inputStyle} value={config.instance_id} onChange={(e) => setConfig({ ...config, instance_id: e.target.value })} />
 
-          <label>Token</label>
+          <label>Token da Instância</label>
           <input style={inputStyle} value={config.token} onChange={(e) => setConfig({ ...config, token: e.target.value })} />
 
-          <label>Webhook Token</label>
+          <label>Client Token (Token de segurança da conta)</label>
+          <input style={inputStyle} value={config.client_token} onChange={(e) => setConfig({ ...config, client_token: e.target.value })} />
+
+          <label>Webhook Token (opcional)</label>
           <input style={inputStyle} value={config.webhook_token} onChange={(e) => setConfig({ ...config, webhook_token: e.target.value })} />
 
           <label>Connected Phone</label>
@@ -131,47 +172,105 @@ export default function AdminPage() {
           <button type="submit" disabled={configSaving} style={{ padding: "0.5rem 1rem" }}>
             {configSaving ? "Salvando..." : "Salvar Config"}
           </button>
-          {configMsg && <p>{configMsg}</p>}
+          {configMsg && <p style={{ color: configMsg.startsWith("Erro") ? "red" : "green" }}>{configMsg}</p>}
         </form>
       )}
 
-      <hr style={{ margin: "2rem 0" }} />
+      {/* Neura Tab */}
+      {tab === "neura" && config && (
+        <form onSubmit={saveNeuraConfig}>
+          <label>System Prompt</label>
+          <textarea
+            style={{ ...inputStyle, minHeight: "300px", fontFamily: "monospace", fontSize: "0.85rem", resize: "vertical" as const }}
+            value={config.neura_prompt}
+            onChange={(e) => setConfig({ ...config, neura_prompt: e.target.value })}
+          />
 
-      {/* Groups Section */}
-      <h2>Grupos Autorizados ({groups.length})</h2>
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: "150px" }}>
+              <label>Modelo</label>
+              <select
+                style={inputStyle}
+                value={config.neura_model}
+                onChange={(e) => setConfig({ ...config, neura_model: e.target.value })}
+              >
+                <option value="gpt-4o">gpt-4o</option>
+                <option value="gpt-4o-mini">gpt-4o-mini</option>
+                <option value="gpt-4.1">gpt-4.1</option>
+                <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                <option value="gpt-4.1-nano">gpt-4.1-nano</option>
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: "150px" }}>
+              <label>Temperature ({config.neura_temperature})</label>
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="0.1"
+                style={{ ...inputStyle, padding: 0 }}
+                value={config.neura_temperature}
+                onChange={(e) => setConfig({ ...config, neura_temperature: parseFloat(e.target.value) })}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: "150px" }}>
+              <label>Top P ({config.neura_top_p})</label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                style={{ ...inputStyle, padding: 0 }}
+                value={config.neura_top_p}
+                onChange={(e) => setConfig({ ...config, neura_top_p: parseFloat(e.target.value) })}
+              />
+            </div>
+          </div>
 
-      <form onSubmit={addGroup} style={{ marginBottom: "1rem" }}>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          <input placeholder="group_id (ex: 120363...@g.us)" value={newGroup.group_id} onChange={(e) => setNewGroup({ ...newGroup, group_id: e.target.value })} required style={{ flex: 1, padding: "0.5rem", minWidth: "200px" }} />
-          <input placeholder="subject" value={newGroup.subject} onChange={(e) => setNewGroup({ ...newGroup, subject: e.target.value })} required style={{ flex: 1, padding: "0.5rem", minWidth: "150px" }} />
-          <input placeholder="subject_owner" value={newGroup.subject_owner} onChange={(e) => setNewGroup({ ...newGroup, subject_owner: e.target.value })} required style={{ flex: 1, padding: "0.5rem", minWidth: "150px" }} />
-          <button type="submit" style={{ padding: "0.5rem 1rem" }}>Adicionar</button>
-        </div>
-        {groupMsg && <p>{groupMsg}</p>}
-      </form>
+          <button type="submit" disabled={configSaving} style={{ padding: "0.5rem 1rem" }}>
+            {configSaving ? "Salvando..." : "Salvar Neura"}
+          </button>
+          {configMsg && <p style={{ color: configMsg.startsWith("Erro") ? "red" : "green" }}>{configMsg}</p>}
+        </form>
+      )}
 
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ borderBottom: "2px solid #333" }}>
-            <th style={{ textAlign: "left", padding: "0.5rem" }}>Group ID</th>
-            <th style={{ textAlign: "left", padding: "0.5rem" }}>Subject</th>
-            <th style={{ textAlign: "left", padding: "0.5rem" }}>Owner</th>
-            <th style={{ padding: "0.5rem" }}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {groups.map((g) => (
-            <tr key={g.group_id} style={{ borderBottom: "1px solid #ddd" }}>
-              <td style={{ padding: "0.5rem", fontSize: "0.8rem", wordBreak: "break-all" }}>{g.group_id}</td>
-              <td style={{ padding: "0.5rem" }}>{g.subject}</td>
-              <td style={{ padding: "0.5rem", fontSize: "0.8rem" }}>{g.subject_owner}</td>
-              <td style={{ padding: "0.5rem" }}>
-                <button onClick={() => removeGroup(g.group_id)} style={{ color: "red", cursor: "pointer", background: "none", border: "none" }}>Remover</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Groups Tab */}
+      {tab === "grupos" && (
+        <>
+          <form onSubmit={addGroup} style={{ marginBottom: "1rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <input placeholder="group_id (ex: 120363...@g.us)" value={newGroup.group_id} onChange={(e) => setNewGroup({ ...newGroup, group_id: e.target.value })} required style={{ flex: 1, padding: "0.5rem", minWidth: "200px" }} />
+              <input placeholder="subject" value={newGroup.subject} onChange={(e) => setNewGroup({ ...newGroup, subject: e.target.value })} required style={{ flex: 1, padding: "0.5rem", minWidth: "150px" }} />
+              <input placeholder="subject_owner" value={newGroup.subject_owner} onChange={(e) => setNewGroup({ ...newGroup, subject_owner: e.target.value })} required style={{ flex: 1, padding: "0.5rem", minWidth: "150px" }} />
+              <button type="submit" style={{ padding: "0.5rem 1rem" }}>Adicionar</button>
+            </div>
+            {groupMsg && <p>{groupMsg}</p>}
+          </form>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: "2px solid #333" }}>
+                <th style={{ textAlign: "left", padding: "0.5rem" }}>Group ID</th>
+                <th style={{ textAlign: "left", padding: "0.5rem" }}>Subject</th>
+                <th style={{ textAlign: "left", padding: "0.5rem" }}>Owner</th>
+                <th style={{ padding: "0.5rem" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((g) => (
+                <tr key={g.group_id} style={{ borderBottom: "1px solid #ddd" }}>
+                  <td style={{ padding: "0.5rem", fontSize: "0.8rem", wordBreak: "break-all" }}>{g.group_id}</td>
+                  <td style={{ padding: "0.5rem" }}>{g.subject}</td>
+                  <td style={{ padding: "0.5rem", fontSize: "0.8rem" }}>{g.subject_owner}</td>
+                  <td style={{ padding: "0.5rem" }}>
+                    <button onClick={() => removeGroup(g.group_id)} style={{ color: "red", cursor: "pointer", background: "none", border: "none" }}>Remover</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
     </main>
   );
 }

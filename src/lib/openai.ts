@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { env } from "./env";
+import { getZapiConfig } from "./config";
 import { NEURA_SYSTEM_PROMPT, NEURA_MODEL, NEURA_TEMPERATURE, NEURA_TOP_P } from "./neura-prompt";
 
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
@@ -21,12 +22,20 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
 }
 
 export async function summarizeText(text: string): Promise<string> {
+  const config = await getZapiConfig();
+
+  // Use config from Supabase if available, otherwise fall back to hardcoded
+  const prompt = config.neura_prompt || NEURA_SYSTEM_PROMPT;
+  const model = config.neura_model || NEURA_MODEL;
+  const temperature = config.neura_temperature ?? NEURA_TEMPERATURE;
+  const topP = config.neura_top_p ?? NEURA_TOP_P;
+
   const response = await openai.chat.completions.create({
-    model: NEURA_MODEL,
-    temperature: NEURA_TEMPERATURE,
-    top_p: NEURA_TOP_P,
+    model,
+    temperature,
+    top_p: topP,
     messages: [
-      { role: "system", content: NEURA_SYSTEM_PROMPT },
+      { role: "system", content: prompt },
       { role: "user", content: `Resumir o texto ${text}` },
     ],
   });
