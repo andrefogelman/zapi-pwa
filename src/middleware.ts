@@ -2,12 +2,20 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
-  // Only protect /admin routes (except /admin/login)
-  if (!request.nextUrl.pathname.startsWith("/admin") || request.nextUrl.pathname === "/admin/login") {
+  // Don't protect login page or auth callback
+  const path = request.nextUrl.pathname;
+  if (path === "/admin/login" || path.startsWith("/auth/")) {
     return NextResponse.next();
   }
 
-  const response = NextResponse.next();
+  // Only protect /admin routes
+  if (!path.startsWith("/admin")) {
+    return NextResponse.next();
+  }
+
+  let response = NextResponse.next({
+    request: { headers: request.headers },
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,6 +26,12 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value);
+          });
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          });
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
           });
