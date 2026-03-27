@@ -54,6 +54,8 @@ export default function AdminPage() {
   const [fetchedGroups, setFetchedGroups] = useState<FetchedGroup[]>([]);
   const [fetching, setFetching] = useState(false);
   const [fetchMsg, setFetchMsg] = useState("");
+  const [searchFetch, setSearchFetch] = useState("");
+  const [searchGroups, setSearchGroups] = useState("");
 
   useEffect(() => {
     loadConfig();
@@ -302,40 +304,55 @@ export default function AdminPage() {
           {/* Fetch from WhatsApp */}
           <div style={{ marginBottom: "1.5rem", padding: "1rem", border: "1px solid #ddd", borderRadius: "4px" }}>
             <h3 style={{ margin: "0 0 0.5rem" }}>Buscar do WhatsApp</h3>
-            <button onClick={fetchFromWhatsApp} disabled={fetching} style={{ padding: "0.5rem 1rem", marginRight: "0.5rem" }}>
-              {fetching ? "Buscando..." : "Buscar Grupos"}
-            </button>
-            {fetchedGroups.length > 0 && (
-              <button onClick={importAllGroups} style={{ padding: "0.5rem 1rem", background: "#4CAF50", color: "#fff", border: "none", borderRadius: "4px" }}>
-                Importar Todos ({fetchedGroups.length})
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+              <button onClick={fetchFromWhatsApp} disabled={fetching} style={{ padding: "0.5rem 1rem" }}>
+                {fetching ? "Buscando..." : "Buscar Grupos"}
               </button>
-            )}
+              {fetchedGroups.length > 0 && (
+                <>
+                  <input
+                    placeholder="Filtrar por nome..."
+                    value={searchFetch}
+                    onChange={(e) => setSearchFetch(e.target.value)}
+                    style={{ padding: "0.5rem", flex: 1, minWidth: "150px" }}
+                  />
+                  <button onClick={importAllGroups} style={{ padding: "0.5rem 1rem", background: "#4CAF50", color: "#fff", border: "none", borderRadius: "4px" }}>
+                    Importar Todos ({fetchedGroups.length})
+                  </button>
+                </>
+              )}
+            </div>
             {fetchMsg && <p style={{ margin: "0.5rem 0 0" }}>{fetchMsg}</p>}
 
-            {fetchedGroups.length > 0 && (
-              <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem", fontSize: "0.85rem" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #ccc" }}>
-                    <th style={{ textAlign: "left", padding: "0.3rem" }}>Nome</th>
-                    <th style={{ textAlign: "left", padding: "0.3rem" }}>Group ID</th>
-                    <th style={{ textAlign: "left", padding: "0.3rem" }}>LID</th>
-                    <th style={{ padding: "0.3rem" }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fetchedGroups.map((g) => (
-                    <tr key={g.group_id} style={{ borderBottom: "1px solid #eee" }}>
-                      <td style={{ padding: "0.3rem" }}>{g.subject}</td>
-                      <td style={{ padding: "0.3rem", fontSize: "0.75rem", wordBreak: "break-all" }}>{g.group_id}</td>
-                      <td style={{ padding: "0.3rem", fontSize: "0.75rem" }}>{g.group_lid || "—"}</td>
-                      <td style={{ padding: "0.3rem" }}>
-                        <button onClick={() => importGroup(g)} style={{ padding: "0.2rem 0.5rem", fontSize: "0.8rem" }}>Importar</button>
-                      </td>
+            {fetchedGroups.length > 0 && (() => {
+              const filtered = fetchedGroups.filter((g) =>
+                !searchFetch || g.subject.toLowerCase().includes(searchFetch.toLowerCase())
+              );
+              return (
+                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.5rem", fontSize: "0.85rem" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #ccc" }}>
+                      <th style={{ textAlign: "left", padding: "0.3rem" }}>Nome</th>
+                      <th style={{ textAlign: "left", padding: "0.3rem" }}>Group ID</th>
+                      <th style={{ textAlign: "left", padding: "0.3rem" }}>LID</th>
+                      <th style={{ padding: "0.3rem" }}></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  </thead>
+                  <tbody>
+                    {filtered.map((g) => (
+                      <tr key={g.group_id} style={{ borderBottom: "1px solid #eee" }}>
+                        <td style={{ padding: "0.3rem" }}>{g.subject}</td>
+                        <td style={{ padding: "0.3rem", fontSize: "0.75rem", wordBreak: "break-all" }}>{g.group_id}</td>
+                        <td style={{ padding: "0.3rem", fontSize: "0.75rem" }}>{g.group_lid || "—"}</td>
+                        <td style={{ padding: "0.3rem" }}>
+                          <button onClick={() => importGroup(g)} style={{ padding: "0.2rem 0.5rem", fontSize: "0.8rem" }}>Importar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              );
+            })()}
           </div>
 
           {/* Manual add */}
@@ -353,6 +370,12 @@ export default function AdminPage() {
 
           {/* Groups table */}
           <h3>Grupos Autorizados ({groups.length})</h3>
+          <input
+            placeholder="Buscar grupo por nome..."
+            value={searchGroups}
+            onChange={(e) => setSearchGroups(e.target.value)}
+            style={{ display: "block", width: "100%", padding: "0.5rem", marginBottom: "0.5rem" }}
+          />
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "2px solid #333" }}>
@@ -364,7 +387,9 @@ export default function AdminPage() {
               </tr>
             </thead>
             <tbody>
-              {groups.map((g) => (
+              {groups
+                .filter((g) => !searchGroups || g.subject.toLowerCase().includes(searchGroups.toLowerCase()) || g.group_id.includes(searchGroups))
+                .map((g) => (
                 <tr key={g.group_id} style={{ borderBottom: "1px solid #ddd" }}>
                   <td style={{ padding: "0.5rem" }}>{g.subject}</td>
                   <td style={{ padding: "0.5rem", fontSize: "0.75rem", wordBreak: "break-all" }}>{g.group_id}</td>
