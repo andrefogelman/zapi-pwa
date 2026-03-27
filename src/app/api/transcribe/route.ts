@@ -30,7 +30,12 @@ export async function POST(request: NextRequest) {
     // Auth check — webhook_token from Supabase config
     const config = await getZapiConfig();
     const token = request.headers.get("x-token");
+    console.log(`[auth] x-token header: "${token}", expected: "${config.webhook_token}", match: ${token === config.webhook_token}`);
     if (token !== config.webhook_token) {
+      // Also log all headers for debugging
+      const headers: Record<string, string> = {};
+      request.headers.forEach((v, k) => { headers[k] = k.toLowerCase().includes('token') ? v : '[redacted]'; });
+      console.log(`[auth] token headers:`, JSON.stringify(headers));
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
