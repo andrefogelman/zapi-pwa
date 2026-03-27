@@ -36,7 +36,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const payload: ZapiPayload = await request.json();
+    const rawPayload = await request.json();
+    console.log("[debug] payload keys:", JSON.stringify(Object.keys(rawPayload)));
+    console.log("[debug] payload sample:", JSON.stringify(rawPayload).substring(0, 500));
+    const payload: ZapiPayload = rawPayload;
 
     // Dedup check
     if (isDuplicate(payload.body.messageId)) {
@@ -79,7 +82,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ status: "ok" });
   } catch (error) {
-    console.error("Transcribe route error:", error);
-    return NextResponse.json({ status: "ok" });
+    const msg = error instanceof Error ? `${error.message}\n${error.stack}` : String(error);
+    console.error("Transcribe route error:", msg);
+    return NextResponse.json({ status: "error", message: msg }, { status: 200 });
   }
 }
