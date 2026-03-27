@@ -6,6 +6,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/admin";
 
+  console.log("[auth/callback] code present:", !!code, "params:", Object.fromEntries(searchParams.entries()));
+
   if (code) {
     const redirectUrl = new URL(next, origin);
     const response = NextResponse.redirect(redirectUrl);
