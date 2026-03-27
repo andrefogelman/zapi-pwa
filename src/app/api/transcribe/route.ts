@@ -27,16 +27,13 @@ function isDuplicate(messageId: string): boolean {
 
 export async function POST(request: NextRequest) {
   try {
-    // Auth check — webhook_token from Supabase config
+    // Auth check — webhook_token from Supabase config (optional: if empty, skip check)
     const config = await getZapiConfig();
-    const token = request.headers.get("x-token");
-    console.log(`[auth] x-token header: "${token}", expected: "${config.webhook_token}", match: ${token === config.webhook_token}`);
-    if (token !== config.webhook_token) {
-      // Also log all headers for debugging
-      const headers: Record<string, string> = {};
-      request.headers.forEach((v, k) => { headers[k] = k.toLowerCase().includes('token') ? v : '[redacted]'; });
-      console.log(`[auth] token headers:`, JSON.stringify(headers));
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    if (config.webhook_token) {
+      const token = request.headers.get("x-token");
+      if (token !== config.webhook_token) {
+        return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      }
     }
 
     const payload: ZapiPayload = await request.json();
