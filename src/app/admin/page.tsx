@@ -135,8 +135,11 @@ export default function AdminPage() {
       if (data.error) {
         setFetchMsg(`Erro: ${data.error}`);
       } else {
-        setFetchedGroups(data.groups);
-        setFetchMsg(`${data.groups.length} grupos encontrados no WhatsApp`);
+        // Filter out groups already imported
+        const importedIds = new Set(groups.map((g) => g.group_id));
+        const notImported = (data.groups as FetchedGroup[]).filter((g) => !importedIds.has(g.group_id));
+        setFetchedGroups(notImported);
+        setFetchMsg(`${notImported.length} grupos novos (${data.groups.length} total no WhatsApp)`);
       }
     } catch {
       setFetchMsg("Erro ao buscar grupos");
