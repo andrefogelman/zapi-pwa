@@ -43,7 +43,6 @@ export async function POST(request: NextRequest) {
       // Save text messages for monitored groups (all participants including self)
       const textContent = body.text?.message;
       if (textContent) {
-        // Normalize phone: "120363...-group" → "120363...@g.us"
         const normalizedGroupId = body.phone.endsWith("-group")
           ? body.phone.replace("-group", "@g.us")
           : body.phone.includes("@") ? body.phone : `${body.phone}@g.us`;
