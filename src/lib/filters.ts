@@ -1,5 +1,5 @@
 import { getZapiConfig } from "./config";
-import { isGroupAuthorized } from "./supabase-server";
+import { getGroupAuth } from "./supabase-server";
 
 export interface ZapiBody {
   fromMe: boolean;
@@ -24,7 +24,6 @@ export type FilterResult =
   | { action: "process"; audioUrl: string; seconds: number; phoneOrLid: string };
 
 function extractBody(payload: ZapiPayload): ZapiBody {
-  // Support both direct Z-API format (fields at root) and n8n-wrapped (fields in .body)
   if ("body" in payload && typeof payload.body === "object" && payload.body !== null && "phone" in payload.body) {
     return payload.body as ZapiBody;
   }
@@ -51,15 +50,24 @@ export async function filterMessage(payload: ZapiPayload): Promise<FilterResult>
 
   // 3. Group message
   if (body.isGroup) {
+    // Always transcribe own audio in any group
     if (body.fromMe) {
       return { action: "process", audioUrl: body.audio.audioUrl, seconds: body.audio.seconds, phoneOrLid };
     }
-    // Check if group is authorized (by group_id = phone)
-    const authorized = await isGroupAuthorized(phone);
-    if (!authorized) {
+
+    // Check group authorization and settings
+    const groupAuth = await getGroupAuth(phone);
+    if (!groupAuth.authorized) {
       return { action: "skip", reason: `group not authorized: ${phone}` };
     }
-    return { action: "process", audioUrl: body.audio.audioUrl, seconds: body.audio.seconds, phoneOrLid };
+
+    // transcribe_all = true: transcribe ALL voice messages in this group (not just mine)
+    if (groupAuth.transcribe_all) {
+      return { action: "process", audioUrl: body.audio.audioUrl, seconds: body.audio.seconds, phoneOrLid };
+    }
+
+    // Default: only transcribe own audio (fromMe was already handled above)
+    return { action: "skip", reason: "group audio from others (transcribe_all disabled)" };
   }
 
   // 4. DM — skip own numbers

@@ -5,20 +5,33 @@ export function getSupabaseServer() {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
-export async function isGroupAuthorized(groupId: string): Promise<boolean> {
+export interface GroupAuth {
+  authorized: boolean;
+  transcribe_all: boolean;
+  monitor_daily: boolean;
+}
+
+export async function getGroupAuth(groupId: string): Promise<GroupAuth> {
   const supabase = getSupabaseServer();
 
-  // Check by group_id (JID) or group_lid (LID)
   const { data, error } = await supabase
     .from("grupos_autorizados")
-    .select("group_id")
+    .select("group_id, transcribe_all, monitor_daily")
     .or(`group_id.eq.${groupId},group_lid.eq.${groupId}`)
     .maybeSingle();
 
   if (error) {
     console.error("Supabase lookup failed, denying access (fail closed):", error.message);
-    return false;
+    return { authorized: false, transcribe_all: false, monitor_daily: false };
   }
 
-  return !!data;
+  if (!data) {
+    return { authorized: false, transcribe_all: false, monitor_daily: false };
+  }
+
+  return {
+    authorized: true,
+    transcribe_all: data.transcribe_all ?? false,
+    monitor_daily: data.monitor_daily ?? false,
+  };
 }

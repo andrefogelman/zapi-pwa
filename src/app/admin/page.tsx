@@ -24,6 +24,8 @@ interface GroupRow {
   subject: string;
   subject_owner: string;
   group_lid?: string;
+  monitor_daily: boolean;
+  transcribe_all: boolean;
 }
 
 interface FetchedGroup {
@@ -48,7 +50,7 @@ export default function AdminPage() {
 
   // Groups state
   const [groups, setGroups] = useState<GroupRow[]>([]);
-  const [newGroup, setNewGroup] = useState<GroupRow>({ group_id: "", subject: "", subject_owner: "", group_lid: "" });
+  const [newGroup, setNewGroup] = useState<GroupRow>({ group_id: "", subject: "", subject_owner: "", group_lid: "", monitor_daily: false, transcribe_all: false });
   const [groupMsg, setGroupMsg] = useState("");
 
   // Fetch from WhatsApp state
@@ -121,7 +123,7 @@ export default function AdminPage() {
       setGroupMsg(`Erro: ${error.message}`);
       return;
     }
-    setNewGroup({ group_id: "", subject: "", subject_owner: "", group_lid: "" });
+    setNewGroup({ group_id: "", subject: "", subject_owner: "", group_lid: "", monitor_daily: false, transcribe_all: false });
     setGroupMsg("Grupo adicionado!");
     loadGroups();
   }
@@ -200,6 +202,11 @@ export default function AdminPage() {
   async function removeGroup(groupId: string) {
     await supabase.from("grupos_autorizados").delete().eq("group_id", groupId);
     loadGroups();
+  }
+
+  async function toggleGroupFlag(groupId: string, field: "monitor_daily" | "transcribe_all", value: boolean) {
+    await supabase.from("grupos_autorizados").update({ [field]: value }).eq("group_id", groupId);
+    setGroups((prev) => prev.map((g) => g.group_id === groupId ? { ...g, [field]: value } : g));
   }
 
   async function handleLogout() {
@@ -404,8 +411,8 @@ export default function AdminPage() {
               <tr style={{ borderBottom: "2px solid #333" }}>
                 <th style={{ textAlign: "left", padding: "0.5rem" }}>Subject</th>
                 <th style={{ textAlign: "left", padding: "0.5rem" }}>Group ID</th>
-                <th style={{ textAlign: "left", padding: "0.5rem" }}>Owner</th>
-                <th style={{ textAlign: "left", padding: "0.5rem" }}>LID</th>
+                <th style={{ textAlign: "center", padding: "0.5rem", fontSize: "0.8rem" }} title="Transcrever todos os áudios do grupo (não só os seus)">Transcrever todos</th>
+                <th style={{ textAlign: "center", padding: "0.5rem", fontSize: "0.8rem" }} title="Monitorar mensagens e gerar relatório diário">Report diário</th>
                 <th style={{ padding: "0.5rem" }}></th>
               </tr>
             </thead>
@@ -415,9 +422,23 @@ export default function AdminPage() {
                 .map((g) => (
                 <tr key={g.group_id} style={{ borderBottom: "1px solid #ddd" }}>
                   <td style={{ padding: "0.5rem" }}>{g.subject}</td>
-                  <td style={{ padding: "0.5rem", fontSize: "0.75rem", wordBreak: "break-all" }}>{g.group_id}</td>
-                  <td style={{ padding: "0.5rem", fontSize: "0.75rem" }}>{g.subject_owner}</td>
-                  <td style={{ padding: "0.5rem", fontSize: "0.75rem" }}>{g.group_lid || "—"}</td>
+                  <td style={{ padding: "0.5rem", fontSize: "0.7rem", wordBreak: "break-all", maxWidth: "200px" }}>{g.group_id}</td>
+                  <td style={{ textAlign: "center", padding: "0.5rem" }}>
+                    <input
+                      type="checkbox"
+                      checked={g.transcribe_all}
+                      onChange={(e) => toggleGroupFlag(g.group_id, "transcribe_all", e.target.checked)}
+                      style={{ width: "1.2rem", height: "1.2rem", cursor: "pointer" }}
+                    />
+                  </td>
+                  <td style={{ textAlign: "center", padding: "0.5rem" }}>
+                    <input
+                      type="checkbox"
+                      checked={g.monitor_daily}
+                      onChange={(e) => toggleGroupFlag(g.group_id, "monitor_daily", e.target.checked)}
+                      style={{ width: "1.2rem", height: "1.2rem", cursor: "pointer" }}
+                    />
+                  </td>
                   <td style={{ padding: "0.5rem" }}>
                     <button onClick={() => removeGroup(g.group_id)} style={{ color: "red", cursor: "pointer", background: "none", border: "none" }}>Remover</button>
                   </td>
