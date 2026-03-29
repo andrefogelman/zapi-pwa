@@ -33,6 +33,12 @@ function extractBody(payload: ZapiPayload): ZapiBody {
   return payload as ZapiBody;
 }
 
+function normalizeGroupId(phone: string): string {
+  if (phone.endsWith("-group")) return phone.replace("-group", "@g.us");
+  if (!phone.includes("@")) return `${phone}@g.us`;
+  return phone;
+}
+
 export async function filterMessage(payload: ZapiPayload): Promise<FilterResult> {
   const config = await getZapiConfig();
   const body = extractBody(payload);
@@ -59,7 +65,7 @@ export async function filterMessage(payload: ZapiPayload): Promise<FilterResult>
     }
 
     // Check group authorization and settings
-    const groupAuth = await getGroupAuth(phone);
+    const groupAuth = await getGroupAuth(normalizeGroupId(phone));
     if (!groupAuth.authorized) {
       return { action: "skip", reason: `group not authorized: ${phone}` };
     }

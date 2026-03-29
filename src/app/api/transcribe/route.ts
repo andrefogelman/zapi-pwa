@@ -40,26 +40,22 @@ export async function POST(request: NextRequest) {
 
     // Save messages from monitored groups (before audio filter)
     if (body.isGroup) {
-      // Save payload sample to Redis for debugging
-      const { Redis } = await import("@upstash/redis");
-      const debugRedis = new Redis({ url: process.env.UPSTASH_REDIS_REST_URL!, token: process.env.UPSTASH_REDIS_REST_TOKEN! });
-      await debugRedis.set("debug:last-group-payload", JSON.stringify(body), { ex: 3600 });
+      // Save text messages for monitored groups (all participants including self)
+      const textContent = body.text?.message;
+      if (textContent) {
+        // Normalize phone: "120363...-group" → "120363...@g.us"
+        const normalizedGroupId = body.phone.endsWith("-group")
+          ? body.phone.replace("-group", "@g.us")
+          : body.phone.includes("@") ? body.phone : `${body.phone}@g.us`;
 
-      // Try multiple possible text field locations
-      const textContent =
-        body.text?.message ||
-        (body as Record<string, unknown>).message as string ||
-        (typeof textField === "string" ? textField : null);
-
-      if (textContent && typeof textContent === "string") {
         saveMonitoredMessage({
-          groupId: body.phone,
+          groupId: normalizedGroupId,
           groupName: body.chatName || "",
           sender: body.participantPhone || body.phone,
-          senderName: body.senderName || (body.fromMe ? "Andre" : "Desconhecido"),
+          senderName: body.senderName || "Desconhecido",
           messageType: "text",
           content: textContent,
-        }).catch(() => {});
+        }).catch((err) => console.error("[monitor] save failed:", err));
       }
     }
 
@@ -77,8 +73,10 @@ export async function POST(request: NextRequest) {
       phoneOrLid: result.phoneOrLid,
       messageId,
       enqueuedAt: Date.now(),
-      // Extra data for monitoring
-      groupId: body.isGroup ? body.phone : undefined,
+      // Extra data for monitoring (normalize phone format)
+      groupId: body.isGroup
+        ? (body.phone.endsWith("-group") ? body.phone.replace("-group", "@g.us") : body.phone.includes("@") ? body.phone : `${body.phone}@g.us`)
+        : undefined,
       groupName: body.chatName,
       senderName: body.senderName || "Desconhecido",
     });
