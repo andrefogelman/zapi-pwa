@@ -10,6 +10,9 @@ export interface ZapiBody {
   isGroup: boolean;
   chatName: string;
   messageId: string;
+  senderName?: string;
+  participantPhone?: string;
+  text?: { message?: string };
   audio?: {
     audioUrl: string;
     seconds: number;

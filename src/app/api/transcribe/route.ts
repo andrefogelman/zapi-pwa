@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getZapiConfig } from "@/lib/config";
-import { filterMessage, type ZapiPayload } from "@/lib/filters";
+import { filterMessage, type ZapiPayload, type ZapiBody } from "@/lib/filters";
 import { enqueueJob, dequeueJob, setProcessing, isProcessing } from "@/lib/queue";
 import { transcribeAudio, summarizeText } from "@/lib/openai";
 import { sendMessage } from "@/lib/zapi";
+import { saveMonitoredMessage } from "@/lib/monitor";
 
 export const maxDuration = 60;
 
 const AUDIO_THRESHOLD_SECONDS = 40;
 const SIGNATURE = "\n\n_Transcrição por IA by Andre 😜_";
+
+function extractBody(payload: ZapiPayload): ZapiBody {
+  if ("body" in payload && typeof payload.body === "object" && payload.body !== null && "phone" in payload.body) {
+    return payload.body as ZapiBody;
+  }
+  return payload as ZapiBody;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,26 +31,46 @@ export async function POST(request: NextRequest) {
 
     const rawPayload = await request.json();
     const payload: ZapiPayload = rawPayload;
+    const body = extractBody(payload);
 
-    const messageId = ("messageId" in rawPayload ? rawPayload.messageId : rawPayload.body?.messageId) as string | undefined;
+    const messageId = body.messageId;
     if (!messageId) {
       return NextResponse.json({ status: "skipped", reason: "no messageId" });
     }
 
-    // Filter
+    // Save text messages from monitored groups (before audio filter)
+    if (body.isGroup && !body.fromMe) {
+      const textContent = body.text?.message;
+      if (textContent) {
+        saveMonitoredMessage({
+          groupId: body.phone,
+          groupName: body.chatName || "",
+          sender: body.participantPhone || body.phone,
+          senderName: body.senderName || "Desconhecido",
+          messageType: "text",
+          content: textContent,
+        }).catch(() => {}); // fire and forget
+      }
+    }
+
+    // Filter for audio processing
     const result = await filterMessage(payload);
     if (result.action === "skip") {
       console.log(`Skipped: ${result.reason}`);
       return NextResponse.json({ status: "skipped", reason: result.reason });
     }
 
-    // Enqueue (Redis dedup — prevents duplicate processing)
+    // Enqueue audio job (Redis dedup)
     const enqueued = await enqueueJob({
       audioUrl: result.audioUrl,
       seconds: result.seconds,
       phoneOrLid: result.phoneOrLid,
       messageId,
       enqueuedAt: Date.now(),
+      // Extra data for monitoring
+      groupId: body.isGroup ? body.phone : undefined,
+      groupName: body.chatName,
+      senderName: body.senderName || "Desconhecido",
     });
 
     if (!enqueued) {
@@ -51,9 +79,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`Queued: messageId=${messageId}`);
 
-    // Process queue immediately (sequential — one at a time)
+    // Process queue
     if (await isProcessing()) {
-      // Another invocation is already processing, this job will be picked up
       return NextResponse.json({ status: "queued" });
     }
 
@@ -66,7 +93,6 @@ export async function POST(request: NextRequest) {
         try {
           console.log(`[worker] Processing messageId=${job.messageId}`);
 
-          // Download audio
           const audioResponse = await fetch(job.audioUrl);
           if (!audioResponse.ok) {
             console.error(`[worker] Audio download failed: ${audioResponse.status}`);
@@ -74,14 +100,24 @@ export async function POST(request: NextRequest) {
           }
           const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
 
-          // Transcribe
           const transcription = await transcribeAudio(audioBuffer);
           if (!transcription) {
             console.error("[worker] Empty transcription");
             continue;
           }
 
-          // Build message
+          // Save audio transcription to monitored messages
+          if (job.groupId) {
+            saveMonitoredMessage({
+              groupId: job.groupId,
+              groupName: job.groupName || "",
+              sender: job.senderName || "Desconhecido",
+              senderName: job.senderName || "Desconhecido",
+              messageType: "audio_transcription",
+              content: transcription,
+            }).catch(() => {});
+          }
+
           let message: string;
           if (job.seconds >= AUDIO_THRESHOLD_SECONDS) {
             const summary = await summarizeText(transcription);
@@ -90,7 +126,6 @@ export async function POST(request: NextRequest) {
             message = `${transcription}${SIGNATURE}`;
           }
 
-          // Send via Z-API
           await sendMessage(job.phoneOrLid, message);
           console.log(`[worker] Done messageId=${job.messageId}`);
         } catch (error) {

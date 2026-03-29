@@ -16,6 +16,9 @@ export interface TranscribeJob {
   phoneOrLid: string;
   messageId: string;
   enqueuedAt: number;
+  groupId?: string;
+  groupName?: string;
+  senderName?: string;
 }
 
 export async function enqueueJob(job: TranscribeJob): Promise<boolean> {
