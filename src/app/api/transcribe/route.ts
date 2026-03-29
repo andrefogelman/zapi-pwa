@@ -38,18 +38,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "skipped", reason: "no messageId" });
     }
 
-    // Save text messages from monitored groups (before audio filter)
-    if (body.isGroup && !body.fromMe) {
-      const textContent = body.text?.message;
-      if (textContent) {
+    // Save messages from monitored groups (before audio filter)
+    if (body.isGroup) {
+      // Log payload keys once to discover text field format
+      const payloadKeys = Object.keys(body).join(",");
+      const textField = (body as Record<string, unknown>).text;
+      const msgField = (body as Record<string, unknown>).message;
+      console.log(`[monitor] group=${body.chatName} fromMe=${body.fromMe} keys=${payloadKeys} text=${JSON.stringify(textField)?.substring(0, 100)} message=${JSON.stringify(msgField)?.substring(0, 100)}`);
+
+      // Try multiple possible text field locations
+      const textContent =
+        body.text?.message ||
+        (body as Record<string, unknown>).message as string ||
+        (typeof textField === "string" ? textField : null);
+
+      if (textContent && typeof textContent === "string") {
         saveMonitoredMessage({
           groupId: body.phone,
           groupName: body.chatName || "",
           sender: body.participantPhone || body.phone,
-          senderName: body.senderName || "Desconhecido",
+          senderName: body.senderName || (body.fromMe ? "Andre" : "Desconhecido"),
           messageType: "text",
           content: textContent,
-        }).catch(() => {}); // fire and forget
+        }).catch(() => {});
       }
     }
 
