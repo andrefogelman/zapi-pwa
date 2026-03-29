@@ -13,25 +13,32 @@ export interface GroupAuth {
 
 export async function getGroupAuth(groupId: string): Promise<GroupAuth> {
   const supabase = getSupabaseServer();
+  const noAuth: GroupAuth = { authorized: false, transcribe_all: false, monitor_daily: false };
 
+  // Try by group_id first
   const { data, error } = await supabase
     .from("grupos_autorizados")
     .select("group_id, transcribe_all, monitor_daily")
-    .or(`group_id.eq.${groupId},group_lid.eq.${groupId}`)
+    .eq("group_id", groupId)
     .maybeSingle();
 
   if (error) {
     console.error("Supabase lookup failed, denying access (fail closed):", error.message);
-    return { authorized: false, transcribe_all: false, monitor_daily: false };
+    return noAuth;
   }
 
-  if (!data) {
-    return { authorized: false, transcribe_all: false, monitor_daily: false };
+  if (data) {
+    return { authorized: true, transcribe_all: data.transcribe_all ?? false, monitor_daily: data.monitor_daily ?? false };
   }
 
-  return {
-    authorized: true,
-    transcribe_all: data.transcribe_all ?? false,
-    monitor_daily: data.monitor_daily ?? false,
-  };
+  // Fallback: try by group_lid
+  const { data: lidData, error: lidError } = await supabase
+    .from("grupos_autorizados")
+    .select("group_id, transcribe_all, monitor_daily")
+    .eq("group_lid", groupId)
+    .maybeSingle();
+
+  if (lidError || !lidData) return noAuth;
+
+  return { authorized: true, transcribe_all: lidData.transcribe_all ?? false, monitor_daily: lidData.monitor_daily ?? false };
 }
