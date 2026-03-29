@@ -40,8 +40,10 @@ export async function POST(request: NextRequest) {
 
     // Save messages from monitored groups (before audio filter)
     if (body.isGroup) {
-      // Log full payload to discover text field format
-      console.log(`[monitor-payload] ${JSON.stringify(body).substring(0, 800)}`);
+      // Save payload sample to Redis for debugging
+      const { Redis } = await import("@upstash/redis");
+      const debugRedis = new Redis({ url: process.env.UPSTASH_REDIS_REST_URL!, token: process.env.UPSTASH_REDIS_REST_TOKEN! });
+      await debugRedis.set("debug:last-group-payload", JSON.stringify(body), { ex: 3600 });
 
       // Try multiple possible text field locations
       const textContent =
