@@ -40,11 +40,8 @@ export async function POST(request: NextRequest) {
 
     // Save messages from monitored groups (before audio filter)
     if (body.isGroup) {
-      // Log payload keys once to discover text field format
-      const payloadKeys = Object.keys(body).join(",");
-      const textField = (body as Record<string, unknown>).text;
-      const msgField = (body as Record<string, unknown>).message;
-      console.log(`[monitor] group=${body.chatName} fromMe=${body.fromMe} keys=${payloadKeys} text=${JSON.stringify(textField)?.substring(0, 100)} message=${JSON.stringify(msgField)?.substring(0, 100)}`);
+      // Log full payload to discover text field format
+      console.log(`[monitor-payload] ${JSON.stringify(body).substring(0, 800)}`);
 
       // Try multiple possible text field locations
       const textContent =
