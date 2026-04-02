@@ -252,6 +252,25 @@ export default function AdminPage() {
     setSummaryLoading(false);
   }
 
+  function exportPDF() {
+    const content = document.getElementById("summary-content");
+    if (!content) return;
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const groups = selectedGroups.length > 0 ? `Grupos: ${selectedGroups.length}` : "";
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Resumo - ${summaryPeriod}</title>
+      <style>body{font-family:sans-serif;padding:2rem;line-height:1.6;max-width:800px;margin:0 auto}
+      h1{font-size:1.3rem;border-bottom:1px solid #ccc;padding-bottom:0.5rem}
+      h2{font-size:1.1rem;margin-top:1.5rem}h3{font-size:1rem}
+      p,li{font-size:0.9rem}hr{margin:1.5rem 0;border:none;border-top:1px solid #ddd}
+      .meta{color:#666;font-size:0.8rem;margin-bottom:1rem}</style></head><body>
+      <h1>Resumo de Grupos WhatsApp</h1>
+      <p class="meta">Período: ${summaryPeriod} | ${groups} | Gerado em: ${new Date().toLocaleString("pt-BR")}</p>
+      <div>${content.innerText.replace(/\n/g, "<br>")}</div></body></html>`);
+    win.document.close();
+    win.print();
+  }
+
   function toggleSummaryGroup(jid: string) {
     setSelectedGroups(prev => prev.includes(jid) ? prev.filter(g => g !== jid) : [...prev, jid]);
   }
@@ -540,10 +559,17 @@ export default function AdminPage() {
           {summaryMsg && <p>{summaryMsg}</p>}
 
           {summaryResult && (
-            <div style={{ border: "1px solid #ddd", borderRadius: "4px", padding: "1rem", whiteSpace: "pre-wrap", fontFamily: "sans-serif", fontSize: "0.9rem", lineHeight: "1.5" }}>
-              {summaryPartial && <p style={{ color: "orange", fontWeight: "bold" }}>⚠️ Resumo parcial — período muito grande</p>}
-              {summaryResult}
-            </div>
+            <>
+              <div style={{ marginBottom: "0.5rem" }}>
+                <button onClick={() => exportPDF()} style={{ padding: "0.5rem 1rem", background: "#1976D2", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+                  Salvar PDF
+                </button>
+              </div>
+              <div id="summary-content" style={{ border: "1px solid #ddd", borderRadius: "4px", padding: "1rem", whiteSpace: "pre-wrap", fontFamily: "sans-serif", fontSize: "0.9rem", lineHeight: "1.5" }}>
+                {summaryPartial && <p style={{ color: "orange", fontWeight: "bold" }}>⚠️ Resumo parcial — período muito grande</p>}
+                {summaryResult}
+              </div>
+            </>
           )}
         </>
       )}
