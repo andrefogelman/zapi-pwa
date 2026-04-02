@@ -36,7 +36,7 @@ interface FetchedGroup {
   _phone?: string;
 }
 
-type Tab = "zapi" | "neura" | "grupos";
+type Tab = "zapi" | "neura" | "grupos" | "resumos";
 
 export default function AdminPage() {
   const supabase = getSupabaseBrowser();
@@ -59,6 +59,18 @@ export default function AdminPage() {
   const [fetchMsg, setFetchMsg] = useState("");
   const [searchFetch, setSearchFetch] = useState("");
   const [searchGroups, setSearchGroups] = useState("");
+
+  // Summary state
+  const [summaryChats, setSummaryChats] = useState<Array<{jid: string; name: string}>>([]);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [summaryPeriod, setSummaryPeriod] = useState("última semana");
+  const [customAfter, setCustomAfter] = useState("");
+  const [customBefore, setCustomBefore] = useState("");
+  const [summaryResult, setSummaryResult] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryMsg, setSummaryMsg] = useState("");
+  const [summaryPartial, setSummaryPartial] = useState(false);
+  const [chatSearchSummary, setChatSearchSummary] = useState("");
 
   useEffect(() => {
     loadConfig();
@@ -209,6 +221,41 @@ export default function AdminPage() {
     setGroups((prev) => prev.map((g) => g.group_id === groupId ? { ...g, [field]: value } : g));
   }
 
+  async function loadSummaryChats(query?: string) {
+    const res = await fetch(`/api/chats-proxy?limit=200${query ? `&query=${encodeURIComponent(query)}` : ""}`);
+    const data = await res.json();
+    if (data.chats) setSummaryChats(data.chats.filter((c: { isGroup: boolean }) => c.isGroup));
+  }
+
+  async function generateSummary(sendWhatsApp = false) {
+    if (selectedGroups.length === 0) { setSummaryMsg("Selecione pelo menos um grupo"); return; }
+    setSummaryLoading(true);
+    setSummaryMsg("");
+    setSummaryResult("");
+    try {
+      const payload: Record<string, unknown> = { groupIds: selectedGroups, sendWhatsApp };
+      if (summaryPeriod === "custom") {
+        payload.after = customAfter;
+        payload.before = customBefore;
+      } else {
+        payload.period = summaryPeriod;
+      }
+      const res = await fetch("/api/summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (data.error) { setSummaryMsg(`Erro: ${data.message || data.error}`); }
+      else {
+        setSummaryResult(data.summary);
+        setSummaryPartial(data.partial);
+        if (sendWhatsApp) setSummaryMsg("Resumo enviado no WhatsApp!");
+      }
+    } catch { setSummaryMsg("Erro ao gerar resumo"); }
+    setSummaryLoading(false);
+  }
+
+  function toggleSummaryGroup(jid: string) {
+    setSelectedGroups(prev => prev.includes(jid) ? prev.filter(g => g !== jid) : [...prev, jid]);
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push("/admin/login");
@@ -237,6 +284,7 @@ export default function AdminPage() {
         <button style={tabStyle("zapi")} onClick={() => setTab("zapi")}>Z-API</button>
         <button style={tabStyle("neura")} onClick={() => setTab("neura")}>Neura (IA)</button>
         <button style={tabStyle("grupos")} onClick={() => setTab("grupos")}>Grupos ({groups.length})</button>
+        <button style={tabStyle("resumos")} onClick={() => { setTab("resumos"); if (summaryChats.length === 0) loadSummaryChats(); }}>Resumos</button>
       </div>
 
       {/* Z-API Config Tab */}
@@ -446,6 +494,57 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+        </>
+      )}
+
+      {/* Resumos Tab */}
+      {tab === "resumos" && (
+        <>
+          <h3>Selecionar Grupos</h3>
+          <input placeholder="Buscar grupo..." value={chatSearchSummary} onChange={(e) => { setChatSearchSummary(e.target.value); loadSummaryChats(e.target.value); }} style={{ display: "block", width: "100%", padding: "0.5rem", marginBottom: "0.5rem" }} />
+          <div style={{ maxHeight: "200px", overflowY: "auto", border: "1px solid #ddd", borderRadius: "4px", marginBottom: "1rem" }}>
+            {summaryChats.map((g) => (
+              <label key={g.jid} style={{ display: "flex", alignItems: "center", padding: "0.3rem 0.5rem", cursor: "pointer", borderBottom: "1px solid #eee", background: selectedGroups.includes(g.jid) ? "#e8f5e9" : "transparent" }}>
+                <input type="checkbox" checked={selectedGroups.includes(g.jid)} onChange={() => toggleSummaryGroup(g.jid)} style={{ marginRight: "0.5rem" }} />
+                {g.name}
+              </label>
+            ))}
+            {summaryChats.length === 0 && <p style={{ padding: "0.5rem", color: "#999" }}>Carregando grupos...</p>}
+          </div>
+          {selectedGroups.length > 0 && <p style={{ fontSize: "0.85rem", color: "#666" }}>{selectedGroups.length} grupo(s) selecionado(s)</p>}
+
+          <h3>Período</h3>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+            {["hoje", "ontem", "últimos 3 dias", "última semana", "último mês", "custom"].map((p) => (
+              <button key={p} onClick={() => setSummaryPeriod(p)} style={{ padding: "0.3rem 0.8rem", background: summaryPeriod === p ? "#333" : "#eee", color: summaryPeriod === p ? "#fff" : "#333", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+                {p === "custom" ? "Personalizado" : p}
+              </button>
+            ))}
+          </div>
+          {summaryPeriod === "custom" && (
+            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+              <input type="date" value={customAfter} onChange={(e) => setCustomAfter(e.target.value)} style={{ padding: "0.5rem" }} />
+              <span style={{ alignSelf: "center" }}>até</span>
+              <input type="date" value={customBefore} onChange={(e) => setCustomBefore(e.target.value)} style={{ padding: "0.5rem" }} />
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+            <button onClick={() => generateSummary(false)} disabled={summaryLoading} style={{ padding: "0.5rem 1rem" }}>
+              {summaryLoading ? "Gerando..." : "Gerar Resumo"}
+            </button>
+            <button onClick={() => generateSummary(true)} disabled={summaryLoading} style={{ padding: "0.5rem 1rem", background: "#4CAF50", color: "#fff", border: "none", borderRadius: "4px" }}>
+              {summaryLoading ? "Enviando..." : "Gerar e Enviar WhatsApp"}
+            </button>
+          </div>
+          {summaryMsg && <p>{summaryMsg}</p>}
+
+          {summaryResult && (
+            <div style={{ border: "1px solid #ddd", borderRadius: "4px", padding: "1rem", whiteSpace: "pre-wrap", fontFamily: "sans-serif", fontSize: "0.9rem", lineHeight: "1.5" }}>
+              {summaryPartial && <p style={{ color: "orange", fontWeight: "bold" }}>⚠️ Resumo parcial — período muito grande</p>}
+              {summaryResult}
+            </div>
+          )}
         </>
       )}
     </main>
