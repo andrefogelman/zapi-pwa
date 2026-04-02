@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
           after: resolved.after,
           before: resolved.before || undefined,
           query,
-          limit: 500,
+          limit: 200,
         });
       } catch {
         summaries.push(`## ${groupId}\n\n_Erro ao buscar mensagens deste grupo._`);

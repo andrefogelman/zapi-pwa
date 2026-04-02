@@ -16,14 +16,21 @@ interface WacliChat {
 }
 
 async function wacliRequest<T>(path: string): Promise<T> {
-  const res = await fetch(`${env.WACLI_API_URL}${path}`, {
-    headers: { Authorization: `Bearer ${env.WACLI_API_TOKEN}` },
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`wacli-api ${res.status}: ${body}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout
+  try {
+    const res = await fetch(`${env.WACLI_API_URL}${path}`, {
+      headers: { Authorization: `Bearer ${env.WACLI_API_TOKEN}` },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`wacli-api ${res.status}: ${body}`);
+    }
+    return res.json();
+  } finally {
+    clearTimeout(timeout);
   }
-  return res.json();
 }
 
 export async function fetchMessages(params: {
