@@ -121,10 +121,13 @@ function ChatApp() {
     setLoadingMsgs(true);
     setMessages([]);
     try {
-      const r = await fetch(`/api/messages?chat=${encodeURIComponent(chat.jid)}&limit=100${chat.phone ? `&phone=${encodeURIComponent(chat.phone)}` : ""}`);
+      const url = `/api/messages?chat=${encodeURIComponent(chat.jid)}&limit=100${chat.phone ? `&phone=${encodeURIComponent(chat.phone)}` : ""}`;
+      console.log("[chat] loading messages:", url, "jid:", chat.jid, "phone:", chat.phone);
+      const r = await fetch(url);
       const d = await r.json();
+      console.log("[chat] got messages:", d.messages?.length, "total:", d.total, "error:", d.error);
       setMessages(d.messages || []);
-    } catch { /* ignore */ }
+    } catch (e) { console.error("[chat] fetch error:", e); }
     setLoadingMsgs(false);
   }
 
