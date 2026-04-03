@@ -173,7 +173,7 @@ function ChatApp() {
 
   function fmt(ts: string) { return ts ? new Date(ts).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : ""; }
 
-  const filtered = chatSearch ? chats.filter(c => c.name.toLowerCase().includes(chatSearch.toLowerCase())) : chats;
+  const filtered = chatSearch ? chats.filter(c => (c.name || "").toLowerCase().includes(chatSearch.toLowerCase())) : chats;
 
   return (
     <div style={{ maxWidth:1100, margin:"0 auto", fontFamily:"sans-serif" }}>
@@ -202,7 +202,7 @@ function ChatApp() {
                   borderBottom:"1px solid #f0f0f0", background:selectedChat?.jid===c.jid?"#e3f2fd":"transparent" }}>
                   <div style={{ width:40, height:40, borderRadius:"50%", flexShrink:0, background:c.photo?`url(${c.photo}) center/cover`:"#bbb",
                     display:"flex", alignItems:"center", justifyContent:"center", fontSize:"0.95rem", color:"#fff", overflow:"hidden" }}>
-                    {!c.photo && (c.isGroup ? "👥" : (c.name||"?").charAt(0).toUpperCase())}
+                    {!c.photo && (c.isGroup ? "👥" : (c.name || "?").charAt(0).toUpperCase())}
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:"flex", justifyContent:"space-between" }}>
