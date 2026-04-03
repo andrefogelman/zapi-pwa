@@ -97,8 +97,8 @@ export async function GET(request: NextRequest) {
       const phones = chats.filter((c) => !c.isGroup).map((c) => c.phone).slice(0, 50);
 
       const [lastMessages, photos] = await Promise.all([
-        fetchLastMessages(chatJids).catch(() => ({} as Record<string, { text: string; sender: string; fromMe: boolean; type: string }>)),
-        fetchPhotos(phones).catch(() => ({} as Record<string, string>)),
+        fetchLastMessages(chatJids).catch((e) => { console.error("[conversations] lastMessages error:", e instanceof Error ? e.message : e); return {} as Record<string, { text: string; sender: string; fromMe: boolean; type: string }>; }),
+        fetchPhotos(phones).catch((e) => { console.error("[conversations] photos error:", e instanceof Error ? e.message : e); return {} as Record<string, string>; }),
       ]);
 
       for (const chat of chats) {
