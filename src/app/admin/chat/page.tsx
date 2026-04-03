@@ -119,7 +119,7 @@ function ChatApp() {
     setLoadingMsgs(true);
     setMessages([]);
     try {
-      const r = await fetch(`/api/messages?chat=${encodeURIComponent(chat.jid)}&limit=100`);
+      const r = await fetch(`/api/messages?chat=${encodeURIComponent(chat.jid)}&limit=100${chat.phone ? `&phone=${encodeURIComponent(chat.phone)}` : ""}`);
       const d = await r.json();
       setMessages(d.messages || []);
     } catch { /* ignore */ }

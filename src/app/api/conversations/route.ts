@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
           jid,
           phone: c.phone,
           lid: c.lid || null,
-          name: c.name || c.phone,
+          name: (c.name && c.name.trim()) || c.phone || c.lid || "Desconhecido",
           isGroup: c.isGroup,
           lastMessageTime: ts,
           timeLabel,
