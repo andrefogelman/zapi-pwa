@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getZapiConfig } from "@/lib/config";
-import { fetchLastMessages, fetchPhotos } from "@/lib/wacli-api";
-
-export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   try {
     const query = (request.nextUrl.searchParams.get("query") || "").toLowerCase();
     const limit = Number(request.nextUrl.searchParams.get("limit") || "200");
-    const includeDetails = request.nextUrl.searchParams.get("details") !== "false";
 
     const config = await getZapiConfig();
     const baseUrl = `https://api.z-api.io/instances/${config.instance_id}/token/${config.token}`;
@@ -33,7 +29,6 @@ export async function GET(request: NextRequest) {
       communityId?: string;
     }> = await res.json();
 
-    // Filter and map
     const chats = rawChats
       .filter((c) => {
         if (c.phone?.includes("newsletter")) return false;
@@ -85,34 +80,10 @@ export async function GET(request: NextRequest) {
       })
       .filter((c) => !query || c.name.toLowerCase().includes(query))
       .sort((a, b) => {
-        // Pinned first, then by last message time
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
         return b.lastMessageTime - a.lastMessageTime;
       });
-
-    // Fetch details in parallel (photos + last messages)
-    if (includeDetails && chats.length > 0) {
-      const chatJids = chats.map((c) => c.jid).slice(0, 100);
-      const phones = chats.filter((c) => !c.isGroup).map((c) => c.phone).slice(0, 50);
-
-      console.log(`[conversations] fetching details: ${chatJids.length} lastMessages, ${phones.length} photos`);
-      const [lastMessages, photos] = await Promise.all([
-        fetchLastMessages(chatJids).catch((e) => { console.error("[conversations] lastMessages error:", e instanceof Error ? `${e.message} ${e.stack}` : e); return {} as Record<string, { text: string; sender: string; fromMe: boolean; type: string }>; }),
-        fetchPhotos(phones).catch((e) => { console.error("[conversations] photos error:", e instanceof Error ? `${e.message} ${e.stack}` : e); return {} as Record<string, string>; }),
-      ]);
-      console.log(`[conversations] got ${Object.keys(lastMessages).length} lastMessages, ${Object.keys(photos).length} photos`);
-
-      for (const chat of chats) {
-        const lm = lastMessages[chat.jid];
-        if (lm) {
-          chat.lastMessage = { text: lm.text, sender: lm.sender, fromMe: lm.fromMe, type: lm.type };
-        }
-        if (!chat.isGroup && photos[chat.phone]) {
-          chat.photo = photos[chat.phone];
-        }
-      }
-    }
 
     return NextResponse.json({ chats });
   } catch (error) {

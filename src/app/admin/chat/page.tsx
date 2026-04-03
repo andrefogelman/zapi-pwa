@@ -73,14 +73,49 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const supabase = getSupabaseBrowser();
 
-  useEffect(() => { loadChats(); }, []);
+  useEffect(() => { loadChats().then((c) => { if (c) loadDetails(c); }); }, []);
   useEffect(() => { if (view === "scheduled") loadScheduled(); }, [view, schedFilter]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  async function loadChats(query?: string) {
+  async function loadChats(query?: string): Promise<Chat[] | null> {
     const res = await fetch(`/api/conversations?limit=200${query ? `&query=${encodeURIComponent(query)}` : ""}`);
     const data = await res.json();
-    if (data.chats) setChats(data.chats);
+    if (data.chats) {
+      setChats(data.chats);
+      return data.chats;
+    }
+    return null;
+  }
+
+  async function loadDetails(chatList: Chat[]) {
+    // Load in chunks of 15 chats to stay within Vercel 10s timeout
+    const CHUNK = 15;
+    for (let i = 0; i < chatList.length; i += CHUNK) {
+      const chunk = chatList.slice(i, i + CHUNK);
+      const chatJids = chunk.map((c) => c.jid);
+      const phones = chunk.filter((c) => !c.isGroup).map((c) => c.phone);
+
+      try {
+        const res = await fetch("/api/conversations/details", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chatJids, phones }),
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+
+        setChats((prev) => prev.map((c) => {
+          const lm = data.lastMessages?.[c.jid];
+          const photo = data.photos?.[c.phone];
+          if (!lm && !photo) return c;
+          return {
+            ...c,
+            lastMessage: lm ? { text: lm.text, sender: lm.sender, fromMe: lm.fromMe, type: lm.type } : c.lastMessage,
+            photo: photo || c.photo,
+          };
+        }));
+      } catch { /* continue with next chunk */ }
+    }
   }
 
   async function selectChat(chat: Chat) {
