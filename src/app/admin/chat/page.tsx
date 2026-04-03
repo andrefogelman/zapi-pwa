@@ -5,8 +5,12 @@ import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 interface Chat {
   jid: string;
+  phone: string;
+  lid: string | null;
   name: string;
   isGroup: boolean;
+  lastMessageTime: number;
+  unread: number;
 }
 
 interface Message {
@@ -222,7 +226,10 @@ export default function ChatPage() {
                     padding: "0.6rem 0.8rem", cursor: "pointer", borderBottom: "1px solid #eee",
                     background: selectedChat?.jid === c.jid ? "#e3f2fd" : "transparent",
                   }}>
-                  <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{c.isGroup ? "👥 " : ""}{c.name}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: 500, fontSize: "0.9rem" }}>{c.isGroup ? "👥 " : ""}{c.name}</span>
+                    {c.unread > 0 && <span style={{ background: "#25D366", color: "#fff", borderRadius: "10px", padding: "0.1rem 0.4rem", fontSize: "0.7rem", fontWeight: 700 }}>{c.unread}</span>}
+                  </div>
                 </div>
               ))}
             </div>
