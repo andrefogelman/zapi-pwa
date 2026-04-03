@@ -96,10 +96,12 @@ export async function GET(request: NextRequest) {
       const chatJids = chats.map((c) => c.jid).slice(0, 100);
       const phones = chats.filter((c) => !c.isGroup).map((c) => c.phone).slice(0, 50);
 
+      console.log(`[conversations] fetching details: ${chatJids.length} lastMessages, ${phones.length} photos`);
       const [lastMessages, photos] = await Promise.all([
-        fetchLastMessages(chatJids).catch((e) => { console.error("[conversations] lastMessages error:", e instanceof Error ? e.message : e); return {} as Record<string, { text: string; sender: string; fromMe: boolean; type: string }>; }),
-        fetchPhotos(phones).catch((e) => { console.error("[conversations] photos error:", e instanceof Error ? e.message : e); return {} as Record<string, string>; }),
+        fetchLastMessages(chatJids).catch((e) => { console.error("[conversations] lastMessages error:", e instanceof Error ? `${e.message} ${e.stack}` : e); return {} as Record<string, { text: string; sender: string; fromMe: boolean; type: string }>; }),
+        fetchPhotos(phones).catch((e) => { console.error("[conversations] photos error:", e instanceof Error ? `${e.message} ${e.stack}` : e); return {} as Record<string, string>; }),
       ]);
+      console.log(`[conversations] got ${Object.keys(lastMessages).length} lastMessages, ${Object.keys(photos).length} photos`);
 
       for (const chat of chats) {
         const lm = lastMessages[chat.jid];
