@@ -134,8 +134,17 @@ function ChatApp() {
     try {
       await fetch("/api/send", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipient: selectedChat.jid, contentType: "text", content: msgText }) });
+      // Add message locally immediately
+      setMessages(prev => [...prev, {
+        sender: "Andre Fogelman",
+        timestamp: new Date().toISOString(),
+        text: msgText,
+        type: "text",
+        fromMe: true,
+        msgId: "",
+        chatName: selectedChat.name,
+      }]);
       setMsgText("");
-      setTimeout(() => openChat(selectedChat), 1500);
     } catch { /* ignore */ }
     setSending(false);
   }
