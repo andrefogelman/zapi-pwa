@@ -1,17 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchMessages } from "@/lib/wacli-api";
-import { env } from "@/lib/env";
-
-export const maxDuration = 60;
-
-async function triggerSync() {
-  try {
-    await fetch(`${env.WACLI_API_URL}/sync`, {
-      headers: { Authorization: `Bearer ${env.WACLI_API_TOKEN}` },
-      signal: AbortSignal.timeout(20000),
-    });
-  } catch { /* ignore sync failures */ }
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,9 +9,6 @@ export async function GET(request: NextRequest) {
     const limit = request.nextUrl.searchParams.get("limit") || "100";
     const phone = request.nextUrl.searchParams.get("phone") || "";
     const after = request.nextUrl.searchParams.get("after") || undefined;
-
-    // Sync first to get latest messages
-    await triggerSync();
 
     // Try with provided JID
     let data = await fetchMessages({ chat, limit: Number(limit), after });
