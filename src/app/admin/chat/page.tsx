@@ -134,17 +134,9 @@ function ChatApp() {
     try {
       await fetch("/api/send", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipient: selectedChat.jid, contentType: "text", content: msgText }) });
-      // Add message locally immediately
-      setMessages(prev => [...prev, {
-        sender: "Andre Fogelman",
-        timestamp: new Date().toISOString(),
-        text: msgText,
-        type: "text",
-        fromMe: true,
-        msgId: "",
-        chatName: selectedChat.name,
-      }]);
       setMsgText("");
+      // Wait for wacli sync to capture the sent message, then reload
+      setTimeout(() => openChat(selectedChat), 3000);
     } catch { /* ignore */ }
     setSending(false);
   }
