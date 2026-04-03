@@ -304,6 +304,7 @@ export default function AdminPage() {
         <button style={tabStyle("neura")} onClick={() => setTab("neura")}>Neura (IA)</button>
         <button style={tabStyle("grupos")} onClick={() => setTab("grupos")}>Grupos ({groups.length})</button>
         <button style={tabStyle("resumos")} onClick={() => { setTab("resumos"); if (summaryChats.length === 0) loadSummaryChats(); }}>Resumos</button>
+        <a href="/admin/chat" style={{ padding: "0.5rem 1.5rem", fontSize: "1rem", textDecoration: "none", color: "#1976d2", fontWeight: "normal" }}>💬 Chat</a>
       </div>
 
       {/* Z-API Config Tab */}
