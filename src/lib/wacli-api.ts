@@ -17,7 +17,7 @@ interface WacliChat {
 
 async function wacliRequest<T>(path: string): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout
+  const timeout = setTimeout(() => controller.abort(), 50000); // 50s timeout for batch ops
   try {
     const res = await fetch(`${env.WACLI_API_URL}${path}`, {
       headers: { Authorization: `Bearer ${env.WACLI_API_TOKEN}` },
@@ -65,12 +65,38 @@ interface LastMessageInfo {
 
 export async function fetchLastMessages(chatJids: string[]): Promise<Record<string, LastMessageInfo>> {
   if (chatJids.length === 0) return {};
-  const data = await wacliRequest<{ lastMessages: Record<string, LastMessageInfo> }>(`/last-messages?chats=${chatJids.join(",")}`);
-  return data.lastMessages;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 50000);
+  try {
+    const res = await fetch(`${env.WACLI_API_URL}/last-messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.WACLI_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ chats: chatJids }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`wacli-api ${res.status}`);
+    const data = await res.json();
+    return data.lastMessages;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function fetchPhotos(phones: string[]): Promise<Record<string, string>> {
   if (phones.length === 0) return {};
-  const data = await wacliRequest<{ photos: Record<string, string> }>(`/photos?phones=${phones.join(",")}`);
-  return data.photos;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 50000);
+  try {
+    const res = await fetch(`${env.WACLI_API_URL}/photos`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.WACLI_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ phones }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`wacli-api ${res.status}`);
+    const data = await res.json();
+    return data.photos;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
