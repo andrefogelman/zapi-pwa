@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
 interface Chat {
   jid: string;
@@ -71,7 +70,6 @@ export default function ChatPage() {
   const [schedFilter, setSchedFilter] = useState("pending");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const supabase = getSupabaseBrowser();
 
   useEffect(() => { loadChats().then((c) => { if (c) loadDetails(c); }); }, []);
   useEffect(() => { if (view === "scheduled") loadScheduled(); }, [view, schedFilter]);
