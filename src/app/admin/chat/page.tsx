@@ -61,6 +61,28 @@ interface SchedMsg {
   error: string | null;
 }
 
+function MediaThumb({ chat, msgId, type }: { chat: string; msgId: string; type: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const url = `/api/media?chat=${encodeURIComponent(chat)}&id=${encodeURIComponent(msgId)}`;
+
+  if (state === "error") return null;
+  if (state === "idle") {
+    return (
+      <div onClick={() => setState("loading")}
+        style={{ padding:"0.4rem 0.6rem", background:"#e0e0e0", borderRadius:4, cursor:"pointer", fontSize:"0.75rem", color:"#555", display:"inline-block", marginBottom:"0.2rem" }}>
+        📷 {type === "video" ? "Vídeo" : type === "sticker" ? "Sticker" : "Imagem"} — clique para ver
+      </div>
+    );
+  }
+  return (
+    <img src={url} alt={type}
+      style={{ maxWidth:"100%", maxHeight:300, borderRadius:4, display: state === "loaded" ? "block" : "none", marginBottom:"0.2rem" }}
+      onLoad={() => setState("loaded")}
+      onError={() => setState("error")}
+    />
+  );
+}
+
 function ChatApp() {
   const [view, setView] = useState<"chat" | "scheduled">("chat");
   const [chats, setChats] = useState<Chat[]>([]);
@@ -243,13 +265,7 @@ function ChatApp() {
                       <div style={{ maxWidth:"70%", padding:"0.35rem 0.6rem", borderRadius:8, background:m.fromMe?"#dcf8c6":"#fff", boxShadow:"0 1px 1px rgba(0,0,0,0.06)" }}>
                         {!m.fromMe && selectedChat.isGroup && <div style={{fontSize:"0.68rem",color:"#1976d2",fontWeight:600}}>{m.sender}</div>}
                         {(m.type === "image" || m.type === "video" || m.type === "sticker") && m.msgId ? (
-                          <img
-                            src={`/api/media?chat=${encodeURIComponent(selectedChat.jid)}&id=${encodeURIComponent(m.msgId)}`}
-                            alt={m.type}
-                            style={{ maxWidth:"100%", maxHeight:300, borderRadius:4, display:"block", marginBottom: m.text ? "0.3rem" : 0 }}
-                            loading="lazy"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                          />
+                          <MediaThumb chat={selectedChat.jid} msgId={m.msgId} type={m.type} />
                         ) : null}
                         {m.text ? <div style={{ fontSize:"0.83rem", whiteSpace:"pre-wrap" }}>{m.text}</div> :
                           (m.type && m.type !== "image" && m.type !== "video" && m.type !== "sticker" && m.type !== "text" && m.type !== "") ?
