@@ -10,7 +10,12 @@ interface Chat {
   name: string;
   isGroup: boolean;
   lastMessageTime: number;
+  timeLabel: string;
   unread: number;
+  pinned: boolean;
+  muted: boolean;
+  photo: string | null;
+  lastMessage: { text: string; sender: string; fromMe: boolean; type: string } | null;
 }
 
 interface Message {
@@ -223,12 +228,46 @@ export default function ChatPage() {
               {chats.map((c) => (
                 <div key={c.jid} onClick={() => selectChat(c)}
                   style={{
-                    padding: "0.6rem 0.8rem", cursor: "pointer", borderBottom: "1px solid #eee",
+                    display: "flex", alignItems: "center", gap: "0.6rem",
+                    padding: "0.6rem 0.8rem", cursor: "pointer", borderBottom: "1px solid #f0f0f0",
                     background: selectedChat?.jid === c.jid ? "#e3f2fd" : "transparent",
                   }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontWeight: 500, fontSize: "0.9rem" }}>{c.isGroup ? "👥 " : ""}{c.name}</span>
-                    {c.unread > 0 && <span style={{ background: "#25D366", color: "#fff", borderRadius: "10px", padding: "0.1rem 0.4rem", fontSize: "0.7rem", fontWeight: 700 }}>{c.unread}</span>}
+                  {/* Avatar */}
+                  <div style={{
+                    width: "42px", height: "42px", borderRadius: "50%", flexShrink: 0,
+                    background: c.photo ? `url(${c.photo}) center/cover` : "#ccc",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: "1.1rem", color: "#fff", overflow: "hidden",
+                  }}>
+                    {!c.photo && (c.isGroup ? "👥" : c.name.charAt(0).toUpperCase())}
+                  </div>
+
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: 600, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.name}
+                      </span>
+                      <span style={{ fontSize: "0.7rem", color: c.unread > 0 ? "#25D366" : "#999", flexShrink: 0, marginLeft: "0.3rem" }}>
+                        {c.timeLabel}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "0.15rem" }}>
+                      <span style={{ fontSize: "0.8rem", color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.lastMessage ? (
+                          <>
+                            {c.lastMessage.fromMe && <span style={{ color: "#53bdeb" }}>✓✓ </span>}
+                            {c.lastMessage.type && c.lastMessage.type !== "text" && c.lastMessage.type !== "" ? `📎 ${c.lastMessage.type}: ` : ""}
+                            {c.lastMessage.text || `[${c.lastMessage.type || "mensagem"}]`}
+                          </>
+                        ) : ""}
+                      </span>
+                      <div style={{ display: "flex", gap: "0.2rem", alignItems: "center", flexShrink: 0, marginLeft: "0.3rem" }}>
+                        {c.muted && <span style={{ fontSize: "0.7rem" }} title="Silenciado">🔇</span>}
+                        {c.pinned && <span style={{ fontSize: "0.7rem" }} title="Fixado">📌</span>}
+                        {c.unread > 0 && <span style={{ background: "#25D366", color: "#fff", borderRadius: "10px", padding: "0.1rem 0.4rem", fontSize: "0.65rem", fontWeight: 700, minWidth: "18px", textAlign: "center" }}>{c.unread}</span>}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}

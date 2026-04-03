@@ -54,3 +54,23 @@ export async function fetchChats(query?: string, limit?: number): Promise<{ chat
   if (limit) qs.set("limit", String(limit));
   return wacliRequest(`/chats?${qs}`);
 }
+
+interface LastMessageInfo {
+  text: string;
+  sender: string;
+  fromMe: boolean;
+  timestamp: string;
+  type: string;
+}
+
+export async function fetchLastMessages(chatJids: string[]): Promise<Record<string, LastMessageInfo>> {
+  if (chatJids.length === 0) return {};
+  const data = await wacliRequest<{ lastMessages: Record<string, LastMessageInfo> }>(`/last-messages?chats=${chatJids.join(",")}`);
+  return data.lastMessages;
+}
+
+export async function fetchPhotos(phones: string[]): Promise<Record<string, string>> {
+  if (phones.length === 0) return {};
+  const data = await wacliRequest<{ photos: Record<string, string> }>(`/photos?phones=${phones.join(",")}`);
+  return data.photos;
+}
