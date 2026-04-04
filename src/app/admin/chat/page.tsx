@@ -112,6 +112,22 @@ function ChatApp() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
+
+  // Voice recording
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordDuration, setRecordDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Transcription cache
+  const [transcriptions, setTranscriptions] = useState<Record<string, string>>({});
+  const [transcribing, setTranscribing] = useState<string | null>(null);
+
+  // Contact send
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [schedDate, setSchedDate] = useState("");
   const [schedTime, setSchedTime] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
@@ -169,6 +185,94 @@ function ChatApp() {
       setMessages(d.messages || []);
     } catch { /* ignore */ }
     setLoadingMsgs(false);
+  }
+
+  // Voice recording
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      const mimeType = MediaRecorder.isTypeSupported("audio/ogg; codecs=opus") ? "audio/ogg; codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm; codecs=opus") ? "audio/webm; codecs=opus" : "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        if (blob.size > 0) await sendVoice(blob, mimeType);
+        setIsRecording(false);
+        setRecordDuration(0);
+      };
+      recorder.start(100);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordDuration(0);
+      recordTimerRef.current = setInterval(() => setRecordDuration(d => d + 1), 1000);
+    } catch (e) { console.error("Recording error:", e); }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop();
+  }
+
+  function cancelRecording() {
+    if (mediaRecorderRef.current) {
+      audioChunksRef.current = [];
+      mediaRecorderRef.current.stop();
+    }
+  }
+
+  async function sendVoice(blob: Blob, mimeType: string) {
+    if (!selectedChat || blob.size === 0) return;
+    setSending(true);
+    try {
+      const ext = mimeType.includes("ogg") ? "ogg" : "webm";
+      const file = new File([blob], `audio.${ext}`, { type: mimeType });
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(uploadData.error);
+
+      await fetch("/api/send", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: selectedChat.jid, contentType: "audio", content: "", mediaUrl: uploadData.url, mediaFilename: file.name }),
+      });
+      setTimeout(() => openChat(selectedChat), 3000);
+    } catch (e) { console.error("Voice send error:", e); }
+    setSending(false);
+  }
+
+  // Transcribe audio message
+  async function transcribeMsg(msgId: string) {
+    if (!selectedChat || transcriptions[msgId]) return;
+    setTranscribing(msgId);
+    try {
+      const res = await fetch("/api/transcribe-audio", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat: selectedChat.jid, msgId }),
+      });
+      const data = await res.json();
+      if (data.text) setTranscriptions(prev => ({ ...prev, [msgId]: data.text }));
+      else setTranscriptions(prev => ({ ...prev, [msgId]: "(não foi possível transcrever)" }));
+    } catch { setTranscriptions(prev => ({ ...prev, [msgId]: "(erro na transcrição)" })); }
+    setTranscribing(null);
+  }
+
+  // Send contact
+  async function sendContact() {
+    if (!selectedChat || !contactName || !contactPhone) return;
+    setSending(true);
+    try {
+      await fetch("/api/send-contact", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: selectedChat.jid, contactName, contactPhone }),
+      });
+      setContactName(""); setContactPhone(""); setShowContactModal(false);
+      setTimeout(() => openChat(selectedChat), 2000);
+    } catch (e) { console.error("Contact send error:", e); }
+    setSending(false);
   }
 
   function handleFileSelect(file: File, type: "image" | "video" | "document") {
@@ -363,6 +467,21 @@ function ChatApp() {
                         {m.text ? <div style={{ fontSize:"0.83rem", whiteSpace:"pre-wrap" }}>{m.text}</div> :
                           (m.type && m.type !== "image" && m.type !== "video" && m.type !== "sticker" && m.type !== "text" && m.type !== "") ?
                           <div style={{ fontSize:"0.83rem", fontStyle:"italic", color:"#999" }}>[{m.type}]</div> : null}
+                        {/* Transcribe button for audio messages */}
+                        {(m.type === "audio" || m.type === "ptt") && m.msgId && (
+                          <div style={{ marginTop:"0.2rem" }}>
+                            {transcriptions[m.msgId] ? (
+                              <div style={{ fontSize:"0.75rem", color:"#444", background:"#f5f5f5", padding:"0.3rem 0.4rem", borderRadius:4, marginTop:"0.1rem" }}>
+                                📝 {transcriptions[m.msgId]}
+                              </div>
+                            ) : (
+                              <button onClick={()=>transcribeMsg(m.msgId)} disabled={transcribing===m.msgId}
+                                style={{ fontSize:"0.65rem", padding:"0.15rem 0.4rem", cursor:"pointer", background:"#e3f2fd", border:"none", borderRadius:4, color:"#1565c0" }}>
+                                {transcribing===m.msgId ? "Transcrevendo..." : "📝 Transcrever"}
+                              </button>
+                            )}
+                          </div>
+                        )}
                         <div style={{ fontSize:"0.58rem", color:"#999", textAlign:"right" }}>{fmt(m.timestamp)}</div>
                       </div>
                     </div>
@@ -434,9 +553,13 @@ function ChatApp() {
                           onMouseEnter={e=>(e.currentTarget.style.background="#f5f5f5")} onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
                           📄 Arquivo
                         </div>
-                        <div onClick={()=>{ mediaInputRef.current?.click(); }} style={{ padding:"0.5rem 0.8rem", cursor:"pointer", display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.85rem" }}
+                        <div onClick={()=>{ mediaInputRef.current?.click(); }} style={{ padding:"0.5rem 0.8rem", cursor:"pointer", display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.85rem", borderBottom:"1px solid #eee" }}
                           onMouseEnter={e=>(e.currentTarget.style.background="#f5f5f5")} onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
                           📷 Foto / Vídeo
+                        </div>
+                        <div onClick={()=>{ setShowContactModal(true); setShowAttach(false); }} style={{ padding:"0.5rem 0.8rem", cursor:"pointer", display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.85rem" }}
+                          onMouseEnter={e=>(e.currentTarget.style.background="#f5f5f5")} onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
+                          👤 Contato
                         </div>
                       </div>
                     )}
@@ -457,7 +580,41 @@ function ChatApp() {
                     {sending||uploading?"...":"Enviar"}</button>
                   <button onClick={()=>setShowSchedule(!showSchedule)}
                     style={{ padding:"0.45rem", background:showSchedule?"#333":"#eee", color:showSchedule?"#fff":"#333", border:"none", borderRadius:20, cursor:"pointer" }}>⏰</button>
+
+                  {/* Mic button - show when no text and no attachment */}
+                  {!msgText.trim() && !attachFile && !isRecording && (
+                    <button onClick={startRecording}
+                      style={{ padding:"0.45rem 0.5rem", background:"#eee", border:"none", borderRadius:20, cursor:"pointer", fontSize:"1rem" }}>🎤</button>
+                  )}
                 </div>
+
+                {/* Recording indicator */}
+                {isRecording && (
+                  <div style={{ display:"flex", alignItems:"center", gap:"0.5rem", padding:"0.4rem", background:"#ffebee", borderRadius:8, marginTop:"0.3rem" }}>
+                    <span style={{ color:"red", fontSize:"0.9rem", animation:"blink 1s infinite" }}>●</span>
+                    <span style={{ fontSize:"0.85rem", fontWeight:600 }}>Gravando... {Math.floor(recordDuration/60)}:{String(recordDuration%60).padStart(2,"0")}</span>
+                    <div style={{ flex:1 }} />
+                    <button onClick={cancelRecording} style={{ padding:"0.2rem 0.5rem", fontSize:"0.75rem", cursor:"pointer", border:"1px solid #ccc", borderRadius:4 }}>Cancelar</button>
+                    <button onClick={stopRecording} style={{ padding:"0.2rem 0.5rem", fontSize:"0.75rem", cursor:"pointer", background:"#25D366", color:"#fff", border:"none", borderRadius:4 }}>Enviar</button>
+                  </div>
+                )}
+
+                {/* Contact send modal */}
+                {showContactModal && (
+                  <div style={{ marginTop:"0.3rem", padding:"0.5rem", background:"#f9f9f9", border:"1px solid #ddd", borderRadius:8 }}>
+                    <div style={{ fontWeight:600, fontSize:"0.85rem", marginBottom:"0.3rem" }}>👤 Enviar Contato</div>
+                    <input value={contactName} onChange={e=>setContactName(e.target.value)} placeholder="Nome do contato"
+                      style={{ display:"block", width:"100%", padding:"0.35rem", marginBottom:"0.3rem", boxSizing:"border-box", borderRadius:4, border:"1px solid #ccc" }} />
+                    <input value={contactPhone} onChange={e=>setContactPhone(e.target.value)} placeholder="Telefone (ex: 5511999999999)"
+                      style={{ display:"block", width:"100%", padding:"0.35rem", marginBottom:"0.3rem", boxSizing:"border-box", borderRadius:4, border:"1px solid #ccc" }} />
+                    <div style={{ display:"flex", gap:"0.3rem" }}>
+                      <button onClick={sendContact} disabled={!contactName||!contactPhone||sending}
+                        style={{ padding:"0.25rem 0.6rem", background:"#25D366", color:"#fff", border:"none", borderRadius:4, cursor:"pointer", fontSize:"0.8rem" }}>Enviar</button>
+                      <button onClick={()=>setShowContactModal(false)}
+                        style={{ padding:"0.25rem 0.6rem", fontSize:"0.8rem", cursor:"pointer" }}>Cancelar</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </>) : (
               <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#999" }}>Selecione uma conversa</div>
