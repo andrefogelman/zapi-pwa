@@ -237,18 +237,37 @@ function ChatApp() {
   }
 
   async function scheduleMsg() {
-    if (!selectedChat || !msgText.trim() || !schedDate || !schedTime) return;
+    if (!selectedChat || !schedDate || !schedTime) return;
+    if (!msgText.trim() && !attachFile) return;
+
+    let mediaUrl: string | null = null;
+    let mediaFilename: string | null = null;
+    let contentType = "text";
+
+    // Upload attachment if present
+    if (attachFile) {
+      const formData = new FormData();
+      formData.append("file", attachFile);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok || uploadData.error) { console.error("Upload failed:", uploadData.error); return; }
+      mediaUrl = uploadData.url;
+      mediaFilename = attachFile.name;
+      contentType = attachType;
+    }
+
     await fetch("/api/schedule", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         recipient: selectedChat.jid, contactName: selectedChat.name, chatJid: selectedChat.jid,
-        contentType: "text", content: msgText,
+        contentType, content: msgText || attachFile?.name || "",
+        mediaUrl, mediaFilename,
         scheduledAt: new Date(`${schedDate}T${schedTime}:00-03:00`).toISOString(),
         isRecurring, recurrencePattern: isRecurring ? recurPattern : null,
         recurrenceInterval: isRecurring ? recurInterval : null,
         recurrenceDays: isRecurring && recurPattern === "weekly" ? recurDays : null,
         recurrenceEndDate: isRecurring && recurEndDate ? new Date(`${recurEndDate}T23:59:59-03:00`).toISOString() : null,
       }) });
-    setMsgText(""); setShowSchedule(false);
+    setMsgText(""); setShowSchedule(false); clearAttach();
   }
 
   function preset(p: string) {
