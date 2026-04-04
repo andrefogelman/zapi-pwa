@@ -143,7 +143,10 @@ function ChatApp() {
         setChats(prev => prev.map(c => {
           const lm = d.lastMessages?.[c.jid];
           const ph = d.photos?.[c.phone];
-          return (lm || ph) ? { ...c, lastMessage: lm || c.lastMessage, photo: ph || c.photo } : c;
+          const cn = d.contacts?.[c.jid];
+          const nameNeedsUpdate = cn && (c.name.includes("@lid") || c.name.includes("@s.whatsapp") || c.name === c.phone);
+          if (!lm && !ph && !nameNeedsUpdate) return c;
+          return { ...c, lastMessage: lm || c.lastMessage, photo: ph || c.photo, name: nameNeedsUpdate ? cn : c.name };
         }));
       } catch { /* skip */ }
     }

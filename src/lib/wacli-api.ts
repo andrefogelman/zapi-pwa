@@ -82,6 +82,24 @@ export async function fetchLastMessages(chatJids: string[]): Promise<Record<stri
   }
 }
 
+export async function fetchContactNames(jids: string[]): Promise<Record<string, string>> {
+  if (jids.length === 0) return {};
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(`${env.WACLI_API_URL}/contacts`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.WACLI_API_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ jids }),
+      signal: controller.signal,
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data.contacts || {};
+  } catch { return {}; }
+  finally { clearTimeout(timeout); }
+}
+
 export async function fetchPhotos(phones: string[]): Promise<Record<string, string>> {
   if (phones.length === 0) return {};
   const controller = new AbortController();
