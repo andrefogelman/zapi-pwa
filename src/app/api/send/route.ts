@@ -3,8 +3,8 @@ import { getZapiConfig } from "@/lib/config";
 
 export async function POST(request: NextRequest) {
   try {
-    const { recipient, contentType, content, mediaUrl, mediaFilename } = await request.json();
-    if (!recipient || !content) {
+    const { recipient, contentType, content, mediaUrl, mediaFilename, messageId } = await request.json();
+    if (!recipient) {
       return NextResponse.json({ error: "recipient and content required" }, { status: 400 });
     }
 
@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
         endpoint = "/send-text";
         body = { phone: recipient, message: content };
     }
+
+    // Add quoted message ID for replies
+    if (messageId) body.messageId = messageId;
 
     const res = await fetch(`${baseUrl}${endpoint}`, {
       method: "POST",

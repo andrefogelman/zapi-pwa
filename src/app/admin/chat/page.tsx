@@ -128,6 +128,14 @@ function ChatApp() {
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+
+  // Message context menu
+  const [contextMenu, setContextMenu] = useState<{ msg: Msg; x: number; y: number } | null>(null);
+  const [replyTo, setReplyTo] = useState<Msg | null>(null);
+  const [showReactions, setShowReactions] = useState<string | null>(null);
+  const [forwardMsg, setForwardMsg] = useState<Msg | null>(null);
+  const [forwardSearch, setForwardSearch] = useState("");
+  const [forwardChats, setForwardChats] = useState<Chat[]>([]);
   const [schedDate, setSchedDate] = useState("");
   const [schedTime, setSchedTime] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
@@ -308,6 +316,46 @@ function ChatApp() {
     setSending(false);
   }
 
+  // Message actions
+  async function reactToMsg(msgId: string, emoji: string) {
+    if (!selectedChat) return;
+    setContextMenu(null); setShowReactions(null);
+    await fetch("/api/react", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: selectedChat.jid, messageId: msgId, reaction: emoji }) });
+  }
+
+  async function deleteMsg(msgId: string, fromMe: boolean) {
+    if (!selectedChat) return;
+    setContextMenu(null);
+    await fetch("/api/delete-message", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: selectedChat.jid, messageId: msgId, owner: fromMe }) });
+    setTimeout(() => openChat(selectedChat), 2000);
+  }
+
+  function copyMsg(text: string) {
+    navigator.clipboard.writeText(text);
+    setContextMenu(null);
+  }
+
+  function replyToMsg(msg: Msg) {
+    setReplyTo(msg);
+    setContextMenu(null);
+  }
+
+  async function forwardMsgTo(targetJid: string) {
+    if (!forwardMsg) return;
+    await fetch("/api/send", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipient: targetJid, contentType: "text", content: forwardMsg.text }) });
+    setForwardMsg(null);
+  }
+
+  function openForwardDialog(msg: Msg) {
+    setForwardMsg(msg);
+    setContextMenu(null);
+    // Load chats for forward picker
+    fetch("/api/conversations?limit=50").then(r=>r.json()).then(d=>{ if(d.chats) setForwardChats(d.chats); });
+  }
+
   async function scheduleContact() {
     if (!selectedChat || !contactName || !contactPhone || !schedDate || !schedTime) return;
     await fetch("/api/schedule", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -379,9 +427,10 @@ function ChatApp() {
     if (!selectedChat || !msgText.trim()) return;
     setSending(true);
     try {
-      await fetch("/api/send", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipient: selectedChat.jid, contentType: "text", content: msgText }) });
-      setMsgText("");
+      const sendBody: Record<string, unknown> = { recipient: selectedChat.jid, contentType: "text", content: msgText };
+      if (replyTo?.msgId) sendBody.messageId = replyTo.msgId;
+      await fetch("/api/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sendBody) });
+      setMsgText(""); setReplyTo(null);
       // Wait for wacli sync to capture the sent message, then reload
       setTimeout(() => openChat(selectedChat), 5000);
     } catch { /* ignore */ }
@@ -507,8 +556,10 @@ function ChatApp() {
                 {loadingMsgs ? <p style={{color:"#999"}}>Carregando...</p> :
                   messages.length===0 ? <p style={{color:"#999"}}>Sem mensagens</p> :
                   messages.map((m,i)=>(
-                    <div key={i} style={{ display:"flex", justifyContent:m.fromMe?"flex-end":"flex-start", marginBottom:"0.35rem" }}>
-                      <div style={{ maxWidth:"70%", padding:"0.35rem 0.6rem", borderRadius:8, background:m.fromMe?"#dcf8c6":"#fff", boxShadow:"0 1px 1px rgba(0,0,0,0.06)" }}>
+                    <div key={i} style={{ display:"flex", justifyContent:m.fromMe?"flex-end":"flex-start", marginBottom:"0.35rem", position:"relative" }}
+                      onContextMenu={(e)=>{ e.preventDefault(); setContextMenu({ msg:m, x:e.clientX, y:e.clientY }); }}>
+                      <div style={{ maxWidth:"70%", padding:"0.35rem 0.6rem", borderRadius:8, background:m.fromMe?"#dcf8c6":"#fff", boxShadow:"0 1px 1px rgba(0,0,0,0.06)", cursor:"pointer" }}
+                        onClick={()=>{ if(contextMenu?.msg.msgId===m.msgId) setContextMenu(null); }}>
                         {!m.fromMe && selectedChat.isGroup && <div style={{fontSize:"0.68rem",color:"#1976d2",fontWeight:600}}>{m.sender}</div>}
                         {(m.type === "image" || m.type === "video" || m.type === "sticker") && m.msgId ? (
                           <MediaThumb chat={selectedChat.jid} msgId={m.msgId} type={m.type} />
@@ -533,8 +584,86 @@ function ChatApp() {
                     </div>
                   ))}
                 <div ref={endRef}/>
+
+                {/* Context menu */}
+                {contextMenu && (
+                  <div style={{ position:"fixed", left:contextMenu.x, top:contextMenu.y, background:"#fff", border:"1px solid #ddd", borderRadius:8, boxShadow:"0 4px 12px rgba(0,0,0,0.15)", zIndex:100, minWidth:180, overflow:"hidden" }}
+                    onClick={()=>setContextMenu(null)}>
+                    <div onClick={()=>replyToMsg(contextMenu.msg)} style={{ padding:"0.5rem 0.8rem", cursor:"pointer", display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.85rem" }}
+                      onMouseEnter={e=>e.currentTarget.style.background="#f5f5f5"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      ↩ Responder
+                    </div>
+                    <div onClick={()=>setShowReactions(contextMenu.msg.msgId)} style={{ padding:"0.5rem 0.8rem", cursor:"pointer", display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.85rem" }}
+                      onMouseEnter={e=>e.currentTarget.style.background="#f5f5f5"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      😊 Reagir
+                    </div>
+                    <div onClick={()=>openForwardDialog(contextMenu.msg)} style={{ padding:"0.5rem 0.8rem", cursor:"pointer", display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.85rem" }}
+                      onMouseEnter={e=>e.currentTarget.style.background="#f5f5f5"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      ⤳ Encaminhar
+                    </div>
+                    {contextMenu.msg.text && (
+                      <div onClick={()=>copyMsg(contextMenu.msg.text)} style={{ padding:"0.5rem 0.8rem", cursor:"pointer", display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.85rem" }}
+                        onMouseEnter={e=>e.currentTarget.style.background="#f5f5f5"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        📋 Copiar
+                      </div>
+                    )}
+                    <div onClick={()=>deleteMsg(contextMenu.msg.msgId, contextMenu.msg.fromMe)} style={{ padding:"0.5rem 0.8rem", cursor:"pointer", display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.85rem", color:"#e53935", borderTop:"1px solid #eee" }}
+                      onMouseEnter={e=>e.currentTarget.style.background="#fff5f5"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      🗑 Excluir
+                    </div>
+                  </div>
+                )}
+
+                {/* Reaction picker */}
+                {showReactions && (
+                  <div style={{ position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)", background:"#fff", border:"1px solid #ddd", borderRadius:12, boxShadow:"0 4px 12px rgba(0,0,0,0.2)", zIndex:101, padding:"0.8rem", display:"flex", gap:"0.5rem" }}>
+                    {["👍","❤️","😂","😮","😢","🙏"].map(emoji=>(
+                      <button key={emoji} onClick={()=>reactToMsg(showReactions, emoji)}
+                        style={{ fontSize:"1.5rem", background:"none", border:"none", cursor:"pointer", padding:"0.3rem", borderRadius:8 }}
+                        onMouseEnter={e=>e.currentTarget.style.background="#f0f0f0"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        {emoji}
+                      </button>
+                    ))}
+                    <button onClick={()=>setShowReactions(null)} style={{ fontSize:"0.8rem", background:"none", border:"none", cursor:"pointer", color:"#999", padding:"0.3rem" }}>✕</button>
+                  </div>
+                )}
+
+                {/* Forward dialog */}
+                {forwardMsg && (
+                  <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.4)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center" }}
+                    onClick={()=>setForwardMsg(null)}>
+                    <div style={{ background:"#fff", borderRadius:12, padding:"1rem", width:350, maxHeight:"70vh", overflow:"auto" }} onClick={e=>e.stopPropagation()}>
+                      <h3 style={{ margin:"0 0 0.5rem", fontSize:"1rem" }}>⤳ Encaminhar para</h3>
+                      <div style={{ fontSize:"0.8rem", color:"#666", background:"#f5f5f5", padding:"0.4rem", borderRadius:4, marginBottom:"0.5rem", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        {forwardMsg.text || `[${forwardMsg.type}]`}
+                      </div>
+                      <input value={forwardSearch} onChange={e=>setForwardSearch(e.target.value)} placeholder="Buscar contato..."
+                        style={{ width:"100%", padding:"0.4rem", marginBottom:"0.5rem", boxSizing:"border-box", borderRadius:4, border:"1px solid #ccc" }} />
+                      <div style={{ maxHeight:250, overflowY:"auto" }}>
+                        {forwardChats.filter(c=>!forwardSearch || (c.name||"").toLowerCase().includes(forwardSearch.toLowerCase())).map(c=>(
+                          <div key={c.jid} onClick={()=>forwardMsgTo(c.jid)}
+                            style={{ padding:"0.4rem", cursor:"pointer", borderBottom:"1px solid #eee", fontSize:"0.85rem" }}
+                            onMouseEnter={e=>e.currentTarget.style.background="#e3f2fd"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                            {c.isGroup?"👥 ":""}{c.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {/* Reply preview */}
               <div style={{ padding:"0.5rem", borderTop:"1px solid #ddd" }}>
+                {replyTo && (
+                  <div style={{ display:"flex", alignItems:"center", gap:"0.5rem", padding:"0.3rem 0.5rem", background:"#e3f2fd", borderRadius:4, marginBottom:"0.4rem", borderLeft:"3px solid #1976d2" }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:"0.7rem", color:"#1976d2", fontWeight:600 }}>{replyTo.fromMe ? "Você" : replyTo.sender}</div>
+                      <div style={{ fontSize:"0.75rem", color:"#555", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{replyTo.text || `[${replyTo.type}]`}</div>
+                    </div>
+                    <button onClick={()=>setReplyTo(null)} style={{ background:"none", border:"none", cursor:"pointer", color:"#999" }}>✕</button>
+                  </div>
+                )}
                 {showSchedule && (
                   <div style={{ marginBottom:"0.5rem", padding:"0.5rem", background:"#f9f9f9", border:"1px solid #ddd", borderRadius:4, fontSize:"0.8rem" }}>
                     <div style={{ display:"flex", gap:"0.3rem", flexWrap:"wrap", marginBottom:"0.3rem" }}>
