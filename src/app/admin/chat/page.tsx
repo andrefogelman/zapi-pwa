@@ -108,7 +108,7 @@ function ChatApp() {
   const [showAttach, setShowAttach] = useState(false);
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [attachPreview, setAttachPreview] = useState<string | null>(null);
-  const [attachType, setAttachType] = useState<"image" | "video" | "document">("document");
+  const [attachType, setAttachType] = useState<"image" | "video" | "document" | "audio">("document");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
@@ -182,9 +182,30 @@ function ChatApp() {
     try {
       const r = await fetch(`/api/messages?chat=${encodeURIComponent(chat.jid)}&limit=100${chat.phone ? `&phone=${encodeURIComponent(chat.phone)}` : ""}`);
       const d = await r.json();
-      setMessages(d.messages || []);
+      const msgs = d.messages || [];
+      setMessages(msgs);
+      // Auto-transcribe all audio messages
+      autoTranscribeAll(msgs, chat.jid);
     } catch { /* ignore */ }
     setLoadingMsgs(false);
+  }
+
+  async function autoTranscribeAll(msgs: Msg[], chatJid: string) {
+    const audioMsgs = msgs.filter(m => (m.type === "audio" || m.type === "ptt") && m.msgId && !transcriptions[m.msgId]);
+    for (const m of audioMsgs) {
+      if (transcriptions[m.msgId]) continue;
+      try {
+        const res = await fetch("/api/transcribe-audio", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat: chatJid, msgId: m.msgId }),
+        });
+        const data = await res.json();
+        const text = data.text || "(não foi possível transcrever)";
+        setTranscriptions(prev => ({ ...prev, [m.msgId]: text }));
+      } catch {
+        setTranscriptions(prev => ({ ...prev, [m.msgId]: "(erro)" }));
+      }
+    }
   }
 
   // Voice recording
@@ -200,7 +221,13 @@ function ChatApp() {
         stream.getTracks().forEach(t => t.stop());
         if (recordTimerRef.current) clearInterval(recordTimerRef.current);
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        if (blob.size > 0) await sendVoice(blob, mimeType);
+        if (blob.size > 0) {
+          // Convert to File and set as attachment (allows send now or schedule)
+          const ext = mimeType.includes("ogg") ? "ogg" : "webm";
+          const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: mimeType });
+          handleFileSelect(file, "audio" as "document");
+          setAttachType("audio" as "image" | "video" | "document");
+        }
         setIsRecording(false);
         setRecordDuration(0);
       };
@@ -275,7 +302,22 @@ function ChatApp() {
     setSending(false);
   }
 
-  function handleFileSelect(file: File, type: "image" | "video" | "document") {
+  async function scheduleContact() {
+    if (!selectedChat || !contactName || !contactPhone || !schedDate || !schedTime) return;
+    await fetch("/api/schedule", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipient: selectedChat.jid, contactName: selectedChat.name, chatJid: selectedChat.jid,
+        contentType: "contact", content: `${contactName}|${contactPhone}`,
+        scheduledAt: new Date(`${schedDate}T${schedTime}:00-03:00`).toISOString(),
+        isRecurring, recurrencePattern: isRecurring ? recurPattern : null,
+        recurrenceInterval: isRecurring ? recurInterval : null,
+        recurrenceDays: isRecurring && recurPattern === "weekly" ? recurDays : null,
+        recurrenceEndDate: isRecurring && recurEndDate ? new Date(`${recurEndDate}T23:59:59-03:00`).toISOString() : null,
+      }) });
+    setContactName(""); setContactPhone(""); setShowContactModal(false); setShowSchedule(false);
+  }
+
+  function handleFileSelect(file: File, type: "image" | "video" | "document" | "audio") {
     setAttachFile(file);
     setAttachType(type);
     setShowAttach(false);
@@ -467,18 +509,15 @@ function ChatApp() {
                         {m.text ? <div style={{ fontSize:"0.83rem", whiteSpace:"pre-wrap" }}>{m.text}</div> :
                           (m.type && m.type !== "image" && m.type !== "video" && m.type !== "sticker" && m.type !== "text" && m.type !== "") ?
                           <div style={{ fontSize:"0.83rem", fontStyle:"italic", color:"#999" }}>[{m.type}]</div> : null}
-                        {/* Transcribe button for audio messages */}
+                        {/* Auto-transcription for audio messages */}
                         {(m.type === "audio" || m.type === "ptt") && m.msgId && (
                           <div style={{ marginTop:"0.2rem" }}>
                             {transcriptions[m.msgId] ? (
-                              <div style={{ fontSize:"0.75rem", color:"#444", background:"#f5f5f5", padding:"0.3rem 0.4rem", borderRadius:4, marginTop:"0.1rem" }}>
+                              <div style={{ fontSize:"0.75rem", color:"#444", background:m.fromMe?"#c8e6c9":"#f5f5f5", padding:"0.3rem 0.4rem", borderRadius:4 }}>
                                 📝 {transcriptions[m.msgId]}
                               </div>
                             ) : (
-                              <button onClick={()=>transcribeMsg(m.msgId)} disabled={transcribing===m.msgId}
-                                style={{ fontSize:"0.65rem", padding:"0.15rem 0.4rem", cursor:"pointer", background:"#e3f2fd", border:"none", borderRadius:4, color:"#1565c0" }}>
-                                {transcribing===m.msgId ? "Transcrevendo..." : "📝 Transcrever"}
-                              </button>
+                              <div style={{ fontSize:"0.65rem", color:"#999", fontStyle:"italic" }}>📝 Transcrevendo...</div>
                             )}
                           </div>
                         )}
@@ -531,7 +570,7 @@ function ChatApp() {
                       <img src={attachPreview} alt="preview" style={{ width:60, height:60, objectFit:"cover", borderRadius:4 }} />
                     ) : (
                       <div style={{ width:40, height:40, background:"#ddd", borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.2rem" }}>
-                        {attachType === "video" ? "🎥" : "📄"}
+                        {attachType === "video" ? "🎥" : attachType === "audio" ? "🎤" : "📄"}
                       </div>
                     )}
                     <div style={{ flex:1, minWidth:0 }}>
@@ -591,11 +630,11 @@ function ChatApp() {
                 {/* Recording indicator */}
                 {isRecording && (
                   <div style={{ display:"flex", alignItems:"center", gap:"0.5rem", padding:"0.4rem", background:"#ffebee", borderRadius:8, marginTop:"0.3rem" }}>
-                    <span style={{ color:"red", fontSize:"0.9rem", animation:"blink 1s infinite" }}>●</span>
+                    <span style={{ color:"red", fontSize:"0.9rem" }}>●</span>
                     <span style={{ fontSize:"0.85rem", fontWeight:600 }}>Gravando... {Math.floor(recordDuration/60)}:{String(recordDuration%60).padStart(2,"0")}</span>
                     <div style={{ flex:1 }} />
                     <button onClick={cancelRecording} style={{ padding:"0.2rem 0.5rem", fontSize:"0.75rem", cursor:"pointer", border:"1px solid #ccc", borderRadius:4 }}>Cancelar</button>
-                    <button onClick={stopRecording} style={{ padding:"0.2rem 0.5rem", fontSize:"0.75rem", cursor:"pointer", background:"#25D366", color:"#fff", border:"none", borderRadius:4 }}>Enviar</button>
+                    <button onClick={stopRecording} style={{ padding:"0.2rem 0.5rem", fontSize:"0.75rem", cursor:"pointer", background:"#1976d2", color:"#fff", border:"none", borderRadius:4 }}>Parar</button>
                   </div>
                 )}
 
@@ -609,7 +648,12 @@ function ChatApp() {
                       style={{ display:"block", width:"100%", padding:"0.35rem", marginBottom:"0.3rem", boxSizing:"border-box", borderRadius:4, border:"1px solid #ccc" }} />
                     <div style={{ display:"flex", gap:"0.3rem" }}>
                       <button onClick={sendContact} disabled={!contactName||!contactPhone||sending}
-                        style={{ padding:"0.25rem 0.6rem", background:"#25D366", color:"#fff", border:"none", borderRadius:4, cursor:"pointer", fontSize:"0.8rem" }}>Enviar</button>
+                        style={{ padding:"0.25rem 0.6rem", background:"#25D366", color:"#fff", border:"none", borderRadius:4, cursor:"pointer", fontSize:"0.8rem" }}>Enviar agora</button>
+                      <button onClick={()=>{ if(!contactName||!contactPhone||!selectedChat) return; scheduleContact(); }}
+                        disabled={!contactName||!contactPhone||!showSchedule}
+                        style={{ padding:"0.25rem 0.6rem", background:showSchedule?"#FF9800":"#eee", color:showSchedule?"#fff":"#999", border:"none", borderRadius:4, cursor:showSchedule?"pointer":"default", fontSize:"0.8rem" }}>
+                        {showSchedule ? "Agendar contato" : "⏰ para agendar"}
+                      </button>
                       <button onClick={()=>setShowContactModal(false)}
                         style={{ padding:"0.25rem 0.6rem", fontSize:"0.8rem", cursor:"pointer" }}>Cancelar</button>
                     </div>

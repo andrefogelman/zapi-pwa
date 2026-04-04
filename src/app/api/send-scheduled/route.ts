@@ -99,6 +99,13 @@ export async function GET() {
             endpoint = "/send-video";
             body = { phone: recipient, video: msg.media_url, caption: msg.content };
             break;
+          case "contact": {
+            // Contact: content has "name|phone" format
+            const [cName, cPhone] = (msg.content || "").split("|");
+            endpoint = "/send-contact";
+            body = { phone: recipient, contactName: cName || "", contactPhone: cPhone || "" };
+            break;
+          }
           default:
             endpoint = "/send-text";
             body = { phone: recipient, message: msg.content };
