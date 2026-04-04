@@ -105,6 +105,13 @@ function ChatApp() {
   const [msgText, setMsgText] = useState("");
   const [sending, setSending] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
+  const [showAttach, setShowAttach] = useState(false);
+  const [attachFile, setAttachFile] = useState<File | null>(null);
+  const [attachPreview, setAttachPreview] = useState<string | null>(null);
+  const [attachType, setAttachType] = useState<"image" | "video" | "document">("document");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
   const [schedDate, setSchedDate] = useState("");
   const [schedTime, setSchedTime] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
@@ -162,6 +169,70 @@ function ChatApp() {
       setMessages(d.messages || []);
     } catch { /* ignore */ }
     setLoadingMsgs(false);
+  }
+
+  function handleFileSelect(file: File, type: "image" | "video" | "document") {
+    setAttachFile(file);
+    setAttachType(type);
+    setShowAttach(false);
+    if (type === "image" && file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (e) => setAttachPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setAttachPreview(null);
+    }
+  }
+
+  function clearAttach() {
+    setAttachFile(null);
+    setAttachPreview(null);
+  }
+
+  async function uploadAndSend() {
+    if (!selectedChat || !attachFile) return;
+    setUploading(true);
+    try {
+      // Upload to Supabase Storage
+      const formData = new FormData();
+      formData.append("file", attachFile);
+
+      const ext = attachFile.name.split(".").pop() || "bin";
+      const storagePath = `chat/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      const uploadRes = await fetch(`${sbUrl}/storage/v1/object/scheduled-media/${storagePath}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${sbKey}`, "x-upsert": "true" },
+        body: formData,
+      });
+
+      if (!uploadRes.ok) throw new Error("Upload failed");
+
+      const mediaUrl = `${sbUrl}/storage/v1/object/public/scheduled-media/${storagePath}`;
+
+      // Send via Z-API
+      await fetch("/api/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipient: selectedChat.jid,
+          contentType: attachType,
+          content: msgText || attachFile.name,
+          mediaUrl,
+          mediaFilename: attachFile.name,
+        }),
+      });
+
+      setMsgText("");
+      clearAttach();
+      setTimeout(() => openChat(selectedChat), 3000);
+    } catch (e) {
+      console.error("Upload/send error:", e);
+    }
+    setUploading(false);
   }
 
   async function sendNow() {
@@ -327,13 +398,56 @@ function ChatApp() {
                     </div>
                   </div>
                 )}
-                <div style={{ display:"flex", gap:"0.3rem" }}>
+                {/* Attachment preview */}
+                {attachFile && (
+                  <div style={{ marginBottom:"0.4rem", padding:"0.4rem", background:"#f0f0f0", borderRadius:8, display:"flex", alignItems:"center", gap:"0.5rem" }}>
+                    {attachPreview ? (
+                      <img src={attachPreview} alt="preview" style={{ width:60, height:60, objectFit:"cover", borderRadius:4 }} />
+                    ) : (
+                      <div style={{ width:40, height:40, background:"#ddd", borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.2rem" }}>
+                        {attachType === "video" ? "🎥" : "📄"}
+                      </div>
+                    )}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:"0.8rem", fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{attachFile.name}</div>
+                      <div style={{ fontSize:"0.7rem", color:"#999" }}>{(attachFile.size / 1024).toFixed(0)} KB</div>
+                    </div>
+                    <button onClick={clearAttach} style={{ background:"none", border:"none", fontSize:"1.1rem", cursor:"pointer", color:"#999" }}>✕</button>
+                  </div>
+                )}
+
+                <div style={{ display:"flex", gap:"0.3rem", position:"relative" }}>
+                  {/* Attach button */}
+                  <div style={{ position:"relative" }}>
+                    <button onClick={()=>setShowAttach(!showAttach)}
+                      style={{ padding:"0.45rem 0.5rem", background:showAttach?"#333":"#eee", color:showAttach?"#fff":"#333", border:"none", borderRadius:20, cursor:"pointer", fontSize:"1rem" }}>📎</button>
+                    {showAttach && (
+                      <div style={{ position:"absolute", bottom:"100%", left:0, marginBottom:"0.3rem", background:"#fff", border:"1px solid #ddd", borderRadius:8, boxShadow:"0 2px 8px rgba(0,0,0,0.15)", overflow:"hidden", zIndex:10, minWidth:"160px" }}>
+                        <div onClick={()=>{ fileInputRef.current?.click(); }} style={{ padding:"0.5rem 0.8rem", cursor:"pointer", display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.85rem", borderBottom:"1px solid #eee" }}
+                          onMouseEnter={e=>(e.currentTarget.style.background="#f5f5f5")} onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
+                          📄 Arquivo
+                        </div>
+                        <div onClick={()=>{ mediaInputRef.current?.click(); }} style={{ padding:"0.5rem 0.8rem", cursor:"pointer", display:"flex", alignItems:"center", gap:"0.5rem", fontSize:"0.85rem" }}
+                          onMouseEnter={e=>(e.currentTarget.style.background="#f5f5f5")} onMouseLeave={e=>(e.currentTarget.style.background="transparent")}>
+                          📷 Foto / Vídeo
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hidden file inputs */}
+                  <input ref={fileInputRef} type="file" style={{ display:"none" }}
+                    onChange={e=>{ const f=e.target.files?.[0]; if(f) handleFileSelect(f,"document"); e.target.value=""; }} />
+                  <input ref={mediaInputRef} type="file" accept="image/*,video/*" style={{ display:"none" }}
+                    onChange={e=>{ const f=e.target.files?.[0]; if(f) { const t=f.type.startsWith("video/")?"video":"image"; handleFileSelect(f,t); } e.target.value=""; }} />
+
                   <input value={msgText} onChange={e=>setMsgText(e.target.value)}
-                    onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendNow();}}}
-                    placeholder="Mensagem..." style={{ flex:1, padding:"0.45rem 0.7rem", borderRadius:20, border:"1px solid #ccc" }}/>
-                  <button onClick={sendNow} disabled={sending||!msgText.trim()}
+                    onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault(); attachFile?uploadAndSend():sendNow();}}}
+                    placeholder={attachFile ? "Legenda (opcional)..." : "Mensagem..."}
+                    style={{ flex:1, padding:"0.45rem 0.7rem", borderRadius:20, border:"1px solid #ccc" }}/>
+                  <button onClick={attachFile?uploadAndSend:sendNow} disabled={sending||uploading||(!msgText.trim()&&!attachFile)}
                     style={{ padding:"0.45rem 0.7rem", background:"#25D366", color:"#fff", border:"none", borderRadius:20, cursor:"pointer" }}>
-                    {sending?"...":"Enviar"}</button>
+                    {sending||uploading?"...":"Enviar"}</button>
                   <button onClick={()=>setShowSchedule(!showSchedule)}
                     style={{ padding:"0.45rem", background:showSchedule?"#333":"#eee", color:showSchedule?"#fff":"#333", border:"none", borderRadius:20, cursor:"pointer" }}>⏰</button>
                 </div>
