@@ -204,7 +204,11 @@ function ChatApp() {
     try { const r = await fetch(`/api/scheduled${schedFilter?`?status=${schedFilter}`:""}`); const d = await r.json(); setScheduledMsgs(d.messages||[]); } catch {}
   }
   async function cancelSched(id: string) { await fetch("/api/scheduled",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status:"cancelled"})}); loadScheduled(); }
-  async function sendSched(id: string) { await fetch("/api/scheduled",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,scheduledAt:new Date().toISOString()})}); loadScheduled(); }
+  async function sendSched(id: string) {
+    await fetch("/api/scheduled",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,scheduledAt:new Date().toISOString()})});
+    await fetch("/api/send-scheduled");
+    loadScheduled();
+  }
   async function delSched(id: string) { await fetch("/api/scheduled",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})}); loadScheduled(); }
 
   function fmt(ts: string) { return ts ? new Date(ts).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : ""; }
