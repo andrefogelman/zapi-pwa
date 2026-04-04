@@ -193,25 +193,13 @@ function ChatApp() {
     if (!selectedChat || !attachFile) return;
     setUploading(true);
     try {
-      // Upload to Supabase Storage
+      // Upload via server-side API
       const formData = new FormData();
       formData.append("file", attachFile);
 
-      const ext = attachFile.name.split(".").pop() || "bin";
-      const storagePath = `chat/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-      const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-      const uploadRes = await fetch(`${sbUrl}/storage/v1/object/scheduled-media/${storagePath}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${sbKey}`, "x-upsert": "true" },
-        body: formData,
-      });
-
-      if (!uploadRes.ok) throw new Error("Upload failed");
-
-      const mediaUrl = `${sbUrl}/storage/v1/object/public/scheduled-media/${storagePath}`;
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok || uploadData.error) throw new Error(uploadData.error || "Upload failed");
 
       // Send via Z-API
       await fetch("/api/send", {
@@ -221,7 +209,7 @@ function ChatApp() {
           recipient: selectedChat.jid,
           contentType: attachType,
           content: msgText || attachFile.name,
-          mediaUrl,
+          mediaUrl: uploadData.url,
           mediaFilename: attachFile.name,
         }),
       });
