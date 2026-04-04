@@ -209,24 +209,30 @@ function ChatApp() {
   }
 
   // Voice recording
+  const recordingStoppedRef = useRef(false);
+
   async function startRecording() {
     try {
+      recordingStoppedRef.current = false;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      // Always use ogg if supported (Z-API requires ogg for audio)
       const mimeType = MediaRecorder.isTypeSupported("audio/ogg; codecs=opus") ? "audio/ogg; codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm; codecs=opus") ? "audio/webm; codecs=opus" : "audio/webm";
       const recorder = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      recorder.onstop = async () => {
+      recorder.onstop = () => {
+        // Guard against multiple onstop calls
+        if (recordingStoppedRef.current) return;
+        recordingStoppedRef.current = true;
         stream.getTracks().forEach(t => t.stop());
         if (recordTimerRef.current) clearInterval(recordTimerRef.current);
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
         if (blob.size > 0) {
-          // Convert to File and set as attachment (allows send now or schedule)
-          const ext = mimeType.includes("ogg") ? "ogg" : "webm";
-          const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: mimeType });
-          handleFileSelect(file, "audio" as "document");
-          setAttachType("audio" as "image" | "video" | "document");
+          // Always name as .ogg for Z-API compatibility
+          const file = new File([blob], `audio-${Date.now()}.ogg`, { type: "audio/ogg" });
+          handleFileSelect(file, "audio");
+          setAttachType("audio");
         }
         setIsRecording(false);
         setRecordDuration(0);
@@ -266,7 +272,7 @@ function ChatApp() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipient: selectedChat.jid, contentType: "audio", content: "", mediaUrl: uploadData.url, mediaFilename: file.name }),
       });
-      setTimeout(() => openChat(selectedChat), 3000);
+      setTimeout(() => openChat(selectedChat), 5000);
     } catch (e) { console.error("Voice send error:", e); }
     setSending(false);
   }
@@ -336,7 +342,7 @@ function ChatApp() {
   }
 
   async function uploadAndSend() {
-    if (!selectedChat || !attachFile) return;
+    if (!selectedChat || !attachFile || uploading) return;
     setUploading(true);
     try {
       // Upload via server-side API
@@ -362,7 +368,7 @@ function ChatApp() {
 
       setMsgText("");
       clearAttach();
-      setTimeout(() => openChat(selectedChat), 3000);
+      setTimeout(() => openChat(selectedChat), 5000);
     } catch (e) {
       console.error("Upload/send error:", e);
     }
@@ -377,14 +383,15 @@ function ChatApp() {
         body: JSON.stringify({ recipient: selectedChat.jid, contentType: "text", content: msgText }) });
       setMsgText("");
       // Wait for wacli sync to capture the sent message, then reload
-      setTimeout(() => openChat(selectedChat), 3000);
+      setTimeout(() => openChat(selectedChat), 5000);
     } catch { /* ignore */ }
     setSending(false);
   }
 
   async function scheduleMsg() {
-    if (!selectedChat || !schedDate || !schedTime) return;
+    if (!selectedChat || !schedDate || !schedTime || uploading) return;
     if (!msgText.trim() && !attachFile) return;
+    setUploading(true);
 
     let mediaUrl: string | null = null;
     let mediaFilename: string | null = null;
@@ -413,7 +420,7 @@ function ChatApp() {
         recurrenceDays: isRecurring && recurPattern === "weekly" ? recurDays : null,
         recurrenceEndDate: isRecurring && recurEndDate ? new Date(`${recurEndDate}T23:59:59-03:00`).toISOString() : null,
       }) });
-    setMsgText(""); setShowSchedule(false); clearAttach();
+    setMsgText(""); setShowSchedule(false); clearAttach(); setUploading(false);
   }
 
   function preset(p: string) {
