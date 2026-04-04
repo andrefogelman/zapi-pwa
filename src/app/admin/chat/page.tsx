@@ -64,22 +64,33 @@ interface SchedMsg {
 function MediaThumb({ chat, msgId, type }: { chat: string; msgId: string; type: string }) {
   const [state, setState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
   const url = `/api/media?chat=${encodeURIComponent(chat)}&id=${encodeURIComponent(msgId)}`;
+  const icon = type === "video" ? "🎥" : type === "sticker" ? "🏷️" : "📷";
+  const label = type === "video" ? "Vídeo" : type === "sticker" ? "Sticker" : "Imagem";
 
-  if (state === "error") return null;
+  if (state === "error") {
+    return (
+      <div style={{ padding:"0.3rem 0.5rem", background:"#f5f5f5", borderRadius:4, fontSize:"0.7rem", color:"#999", display:"inline-block", marginBottom:"0.2rem" }}>
+        {icon} {label}
+      </div>
+    );
+  }
   if (state === "idle") {
     return (
       <div onClick={() => setState("loading")}
         style={{ padding:"0.4rem 0.6rem", background:"#e0e0e0", borderRadius:4, cursor:"pointer", fontSize:"0.75rem", color:"#555", display:"inline-block", marginBottom:"0.2rem" }}>
-        📷 {type === "video" ? "Vídeo" : type === "sticker" ? "Sticker" : "Imagem"} — clique para ver
+        {icon} {label} — clique para ver
       </div>
     );
   }
   return (
-    <img src={url} alt={type}
-      style={{ maxWidth:"100%", maxHeight:300, borderRadius:4, display: state === "loaded" ? "block" : "none", marginBottom:"0.2rem" }}
-      onLoad={() => setState("loaded")}
-      onError={() => setState("error")}
-    />
+    <>
+      {state === "loading" && <div style={{ fontSize:"0.7rem", color:"#999", marginBottom:"0.2rem" }}>Carregando...</div>}
+      <img src={url} alt={type}
+        style={{ maxWidth:"100%", maxHeight:300, borderRadius:4, display: state === "loaded" ? "block" : "none", marginBottom:"0.2rem" }}
+        onLoad={() => setState("loaded")}
+        onError={() => setState("error")}
+      />
+    </>
   );
 }
 
