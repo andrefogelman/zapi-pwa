@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getZapiConfig } from "@/lib/config";
+import { getZapiBase } from "@/lib/zapi";
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,10 +8,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "recipient and content required" }, { status: 400 });
     }
 
-    const config = await getZapiConfig();
-    const baseUrl = `https://api.z-api.io/instances/${config.instance_id}/token/${config.token}`;
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (config.client_token) headers["Client-Token"] = config.client_token;
+    const { baseUrl, headers } = await getZapiBase();
 
     let endpoint: string;
     let body: Record<string, unknown>;
@@ -40,7 +37,6 @@ export async function POST(request: NextRequest) {
         body = { phone: recipient, message: content };
     }
 
-    // Add quoted message ID for replies
     if (messageId) body.messageId = messageId;
 
     const res = await fetch(`${baseUrl}${endpoint}`, {

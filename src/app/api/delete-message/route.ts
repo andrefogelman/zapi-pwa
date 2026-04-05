@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getZapiConfig } from "@/lib/config";
+import { getZapiBase } from "@/lib/zapi";
 
 export async function POST(request: NextRequest) {
   try {
     const { phone, messageId, owner } = await request.json();
     if (!phone || !messageId) return NextResponse.json({ error: "phone and messageId required" }, { status: 400 });
 
-    const config = await getZapiConfig();
-    const baseUrl = `https://api.z-api.io/instances/${config.instance_id}/token/${config.token}`;
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (config.client_token) headers["Client-Token"] = config.client_token;
-
+    const { baseUrl, headers } = await getZapiBase();
     const params = new URLSearchParams({ messageId, phone, owner: owner ? "true" : "false" });
     const res = await fetch(`${baseUrl}/messages?${params}`, { method: "DELETE", headers });
 

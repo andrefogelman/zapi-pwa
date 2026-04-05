@@ -129,13 +129,11 @@ function ChatApp() {
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
 
-  // Message context menu
   const [contextMenu, setContextMenu] = useState<{ msg: Msg; x: number; y: number } | null>(null);
   const [replyTo, setReplyTo] = useState<Msg | null>(null);
   const [showReactions, setShowReactions] = useState<string | null>(null);
   const [forwardMsg, setForwardMsg] = useState<Msg | null>(null);
   const [forwardSearch, setForwardSearch] = useState("");
-  const [forwardChats, setForwardChats] = useState<Chat[]>([]);
   const [schedDate, setSchedDate] = useState("");
   const [schedTime, setSchedTime] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
@@ -150,6 +148,12 @@ function ChatApp() {
   useEffect(() => { loadChats(); }, []);
   useEffect(() => { if (view === "scheduled") loadScheduled(); }, [view, schedFilter]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = () => setContextMenu(null);
+    document.addEventListener("click", dismiss);
+    return () => document.removeEventListener("click", dismiss);
+  }, [contextMenu]);
 
   async function loadChats(q?: string) {
     setChatsLoading(true);
@@ -316,20 +320,23 @@ function ChatApp() {
     setSending(false);
   }
 
-  // Message actions
   async function reactToMsg(msgId: string, emoji: string) {
     if (!selectedChat) return;
     setContextMenu(null); setShowReactions(null);
-    await fetch("/api/react", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: selectedChat.jid, messageId: msgId, reaction: emoji }) });
+    try {
+      await fetch("/api/react", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: selectedChat.jid, messageId: msgId, reaction: emoji }) });
+    } catch (e) { console.error("React error:", e); }
   }
 
   async function deleteMsg(msgId: string, fromMe: boolean) {
     if (!selectedChat) return;
     setContextMenu(null);
-    await fetch("/api/delete-message", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: selectedChat.jid, messageId: msgId, owner: fromMe }) });
-    setTimeout(() => openChat(selectedChat), 2000);
+    try {
+      await fetch("/api/delete-message", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: selectedChat.jid, messageId: msgId, owner: fromMe }) });
+      setTimeout(() => openChat(selectedChat), 2000);
+    } catch (e) { console.error("Delete error:", e); }
   }
 
   function copyMsg(text: string) {
@@ -344,16 +351,16 @@ function ChatApp() {
 
   async function forwardMsgTo(targetJid: string) {
     if (!forwardMsg) return;
-    await fetch("/api/send", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recipient: targetJid, contentType: "text", content: forwardMsg.text }) });
+    try {
+      await fetch("/api/send", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: targetJid, contentType: "text", content: forwardMsg.text }) });
+    } catch (e) { console.error("Forward error:", e); }
     setForwardMsg(null);
   }
 
   function openForwardDialog(msg: Msg) {
     setForwardMsg(msg);
     setContextMenu(null);
-    // Load chats for forward picker
-    fetch("/api/conversations?limit=50").then(r=>r.json()).then(d=>{ if(d.chats) setForwardChats(d.chats); });
   }
 
   async function scheduleContact() {
@@ -640,7 +647,7 @@ function ChatApp() {
                       <input value={forwardSearch} onChange={e=>setForwardSearch(e.target.value)} placeholder="Buscar contato..."
                         style={{ width:"100%", padding:"0.4rem", marginBottom:"0.5rem", boxSizing:"border-box", borderRadius:4, border:"1px solid #ccc" }} />
                       <div style={{ maxHeight:250, overflowY:"auto" }}>
-                        {forwardChats.filter(c=>!forwardSearch || (c.name||"").toLowerCase().includes(forwardSearch.toLowerCase())).map(c=>(
+                        {chats.filter(c=>!forwardSearch || (c.name||"").toLowerCase().includes(forwardSearch.toLowerCase())).map(c=>(
                           <div key={c.jid} onClick={()=>forwardMsgTo(c.jid)}
                             style={{ padding:"0.4rem", cursor:"pointer", borderBottom:"1px solid #eee", fontSize:"0.85rem" }}
                             onMouseEnter={e=>e.currentTarget.style.background="#e3f2fd"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
