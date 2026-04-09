@@ -22,6 +22,7 @@ async function wacliRequest<T>(path: string): Promise<T> {
     const res = await fetch(`${env.WACLI_API_URL}${path}`, {
       headers: { Authorization: `Bearer ${env.WACLI_API_TOKEN}` },
       signal: controller.signal,
+      cache: "no-store",
     });
     if (!res.ok) {
       const body = await res.text();
