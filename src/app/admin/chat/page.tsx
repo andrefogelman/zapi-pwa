@@ -192,9 +192,12 @@ function ChatApp() {
     setLoadingMsgs(true);
     setMessages([]);
     try {
-      const r = await fetch(`/api/messages?chat=${encodeURIComponent(chat.jid)}&limit=100${chat.phone ? `&phone=${encodeURIComponent(chat.phone)}` : ""}&_t=${Date.now()}`);
+      const r = await fetch(`/api/messages?chat=${encodeURIComponent(chat.jid)}&limit=500${chat.phone ? `&phone=${encodeURIComponent(chat.phone)}` : ""}&_t=${Date.now()}`);
       const d = await r.json();
-      const msgs = d.messages || [];
+      const allMsgs = d.messages || [];
+      // Keep only the last 150 messages (most recent)
+      const msgs = allMsgs.slice(-150);
+      console.log(`[chat] jid=${chat.jid} total=${d.total} fetched=${allMsgs.length} showing=${msgs.length} first=${msgs[0]?.timestamp} last=${msgs[msgs.length-1]?.timestamp}`);
       setMessages(msgs);
       // Auto-transcribe all audio messages
       autoTranscribeAll(msgs, chat.jid);

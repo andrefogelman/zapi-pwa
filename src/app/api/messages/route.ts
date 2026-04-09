@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
     const chat = request.nextUrl.searchParams.get("chat");
     if (!chat) return NextResponse.json({ error: "chat required" }, { status: 400 });
 
-    const limit = request.nextUrl.searchParams.get("limit") || "100";
+    const limit = request.nextUrl.searchParams.get("limit") || "500";
     const phone = request.nextUrl.searchParams.get("phone") || "";
     const after = request.nextUrl.searchParams.get("after") || undefined;
 
