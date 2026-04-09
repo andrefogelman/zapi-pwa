@@ -74,6 +74,7 @@ export async function fetchLastMessages(chatJids: string[]): Promise<Record<stri
       headers: { Authorization: `Bearer ${env.WACLI_API_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({ chats: chatJids }),
       signal: controller.signal,
+      cache: "no-store",
     });
     if (!res.ok) throw new Error(`wacli-api ${res.status}`);
     const data = await res.json();
@@ -93,6 +94,7 @@ export async function fetchContactNames(jids: string[]): Promise<Record<string, 
       headers: { Authorization: `Bearer ${env.WACLI_API_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({ jids }),
       signal: controller.signal,
+      cache: "no-store",
     });
     if (!res.ok) return {};
     const data = await res.json();
@@ -111,6 +113,7 @@ export async function fetchPhotos(phones: string[]): Promise<Record<string, stri
       headers: { Authorization: `Bearer ${env.WACLI_API_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({ phones }),
       signal: controller.signal,
+      cache: "no-store",
     });
     if (!res.ok) throw new Error(`wacli-api ${res.status}`);
     const data = await res.json();

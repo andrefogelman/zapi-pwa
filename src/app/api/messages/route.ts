@@ -19,7 +19,9 @@ export async function GET(request: NextRequest) {
       if (phoneData.messages?.length > 0) data = phoneData;
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+    });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: msg }, { status: 502 });

@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (config.client_token) headers["Client-Token"] = config.client_token;
 
-    const res = await fetch(`${baseUrl}/chats?page=1&pageSize=${limit}`, { headers });
+    const res = await fetch(`${baseUrl}/chats?page=1&pageSize=${limit}`, { headers, cache: "no-store" });
     if (!res.ok) {
       return NextResponse.json({ error: `Z-API ${res.status}` }, { status: 502 });
     }

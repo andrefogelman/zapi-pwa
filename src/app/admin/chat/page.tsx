@@ -192,13 +192,13 @@ function ChatApp() {
     setLoadingMsgs(true);
     setMessages([]);
     try {
-      const r = await fetch(`/api/messages?chat=${encodeURIComponent(chat.jid)}&limit=100${chat.phone ? `&phone=${encodeURIComponent(chat.phone)}` : ""}`);
+      const r = await fetch(`/api/messages?chat=${encodeURIComponent(chat.jid)}&limit=100${chat.phone ? `&phone=${encodeURIComponent(chat.phone)}` : ""}&_t=${Date.now()}`);
       const d = await r.json();
       const msgs = d.messages || [];
       setMessages(msgs);
       // Auto-transcribe all audio messages
       autoTranscribeAll(msgs, chat.jid);
-    } catch { /* ignore */ }
+    } catch (e) { console.error("Load messages error:", e); }
     setLoadingMsgs(false);
   }
 
@@ -440,7 +440,7 @@ function ChatApp() {
       setMsgText(""); setReplyTo(null);
       // Wait for wacli sync to capture the sent message, then reload
       setTimeout(() => openChat(selectedChat), 5000);
-    } catch { /* ignore */ }
+    } catch (e) { console.error("Send error:", e); }
     setSending(false);
   }
 
