@@ -42,3 +42,20 @@ export async function getGroupAuth(groupId: string): Promise<GroupAuth> {
 
   return { authorized: true, transcribe_all: lidData.transcribe_all ?? false, monitor_daily: lidData.monitor_daily ?? false };
 }
+
+export async function verifyInstanceOwnership(userId: string, instanceId: string): Promise<<booleanboolean> {
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from("instances")
+    .select("user_id")
+    .eq("instance_id", instanceId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error verifying instance ownership:", error.message);
+    return false;
+  }
+
+  return !!data;
+}
