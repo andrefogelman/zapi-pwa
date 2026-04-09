@@ -558,7 +558,14 @@ function ChatApp() {
           {/* Chat area */}
           <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
             {selectedChat ? (<>
-              <div style={{ padding:"0.6rem 1rem", borderBottom:"1px solid #ddd", fontWeight:600 }}>{selectedChat.name}</div>
+              <div style={{ padding:"0.6rem 1rem", borderBottom:"1px solid #ddd", fontWeight:600, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <span>{selectedChat.name}</span>
+                <button onClick={()=>openChat(selectedChat)} disabled={loadingMsgs}
+                  style={{ background:"none", border:"none", cursor:loadingMsgs?"not-allowed":"pointer", fontSize:"1.1rem", padding:"0.2rem 0.4rem", borderRadius:4, opacity:loadingMsgs?0.4:0.7 }}
+                  title="Recarregar mensagens">
+                  🔄
+                </button>
+              </div>
               <div style={{ flex:1, overflowY:"auto", padding:"0.8rem", background:"#f0f0f0" }}>
                 {loadingMsgs ? <p style={{color:"#999"}}>Carregando...</p> :
                   messages.length===0 ? <p style={{color:"#999"}}>Sem mensagens</p> :
