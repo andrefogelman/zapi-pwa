@@ -11,11 +11,10 @@ export interface GroupAuth {
   monitor_daily: boolean;
 }
 
-export async function getGroupAuth(groupId: string): Promise<GroupAuth> {
+export async function getGroupAuth(groupId: string): Promise<<GroupGroupAuth> {
   const supabase = getSupabaseServer();
   const noAuth: GroupAuth = { authorized: false, transcribe_all: false, monitor_daily: false };
 
-  // Try by group_id first
   const { data, error } = await supabase
     .from("grupos_autorizados")
     .select("group_id, transcribe_all, monitor_daily")
@@ -31,7 +30,6 @@ export async function getGroupAuth(groupId: string): Promise<GroupAuth> {
     return { authorized: true, transcribe_all: data.transcribe_all ?? false, monitor_daily: data.monitor_daily ?? false };
   }
 
-  // Fallback: try by group_lid
   const { data: lidData, error: lidError } = await supabase
     .from("grupos_autorizados")
     .select("group_id, transcribe_all, monitor_daily")

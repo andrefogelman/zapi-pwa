@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     // Tenant Isolation: Verify that the instance belongs to the user
     const { data: instance, error: instanceError } = await supabase
       .from("instances")
-      .select("token, client_token")
+      .select("token, client_token, instance_id")
       .eq("id", instance_id) // Assuming instance_id in body is the primary key 'id' of the table
       .eq("user_id", user.id)
       .single();
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     // getZapiBase currently uses getZapiConfig which reads from process.env.
     // We need to modify getZapiBase or create a custom request to use the instance's specific token.
 
-    const { baseUrl, headers } = await getZapiBase();
+    const { baseUrl: _baseUrl, headers: _headers } = await getZapiBase();
     // Note: getZapiBase uses process.env. We need to override it with the instance's specific tokens.
     // This indicates that getZapiBase needs a refactor to accept instance details.
 
