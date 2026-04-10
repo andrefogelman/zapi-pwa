@@ -1,12 +1,18 @@
-import { Redis } from '@upstash/redis'
+import { Redis } from "@upstash/redis";
 
 export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-})
+});
 
 export const sessionCache = {
-  get: async (id: string) => await redis.get(`session:${id}`),
-  set: async (id: string, token: string, ttl = 86400) => await redis.set(`session:${id}`, token, { ex: ttl }),
-  del: async (id: string) => await redis.del(`session:${id}`),
-}
+  async get(instanceId: string): Promise<string | null> {
+    return await redis.get<string>(`session:${instanceId}`);
+  },
+  async set(instanceId: string, token: string, ttl = 86400): Promise<void> {
+    await redis.set(`session:${instanceId}`, token, { ex: ttl });
+  },
+  async del(instanceId: string): Promise<void> {
+    await redis.del(`session:${instanceId}`);
+  },
+};

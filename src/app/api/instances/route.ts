@@ -1,81 +1,50 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseServer } from "@/lib/supabase-server";
+import { getSupabaseServer, getUserFromToken } from "@/lib/supabase-server";
 
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = getSupabaseServer();
+export async function GET(request: Request) {
+  const token = request.headers.get("Authorization")?.replace("Bearer ", "");
+  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    // The user is authenticated via the request context (Supabase Auth)
-    // Since we are using the service role key in getSupabaseServer,
-    // we need to manually verify the user's token from the Authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "Missing Authorization header" }, { status: 401 });
-    }
+  const user = await getUserFromToken(token);
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from("instances")
+    .select("id, name, zapi_instance_id, status, connected_phone, created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
 
-    if (userError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { data: instances, error: instancesError } = await supabase
-      .from("instances")
-      .select("*")
-      .eq("user_id", user.id);
-
-    if (instancesError) {
-      return NextResponse.json({ error: instancesError.message }, { status: 500 });
-    }
-
-    return NextResponse.json(instances);
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json(data);
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = getSupabaseServer();
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "Missing Authorization header" }, { status: 401 });
-    }
+export async function POST(request: Request) {
+  const token = request.headers.get("Authorization")?.replace("Bearer ", "");
+  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+  const user = await getUserFromToken(token);
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (userError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const body = await request.json();
+  const { name, zapi_instance_id, zapi_token, zapi_client_token } = body;
 
-    const body = await request.json();
-    const { instance_id, token: instance_token, client_token } = body;
-
-    if (!instance_id || !instance_token) {
-      return NextResponse.json({ error: "instance_id and token are required" }, { status: 400 });
-    }
-
-    const { data, error: insertError } = await supabase
-      .from("instances")
-      .insert({
-        user_id: user.id,
-        instance_id,
-        token: instance_token,
-        client_token,
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
-    }
-
-    return NextResponse.json(data);
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: msg }, { status: 500 });
+  if (!zapi_instance_id || !zapi_token) {
+    return Response.json({ error: "zapi_instance_id and zapi_token are required" }, { status: 400 });
   }
+
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from("instances")
+    .insert({
+      user_id: user.id,
+      name: name || "Minha Instância",
+      zapi_instance_id,
+      zapi_token,
+      zapi_client_token: zapi_client_token || null,
+    })
+    .select()
+    .single();
+
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json(data, { status: 201 });
 }
