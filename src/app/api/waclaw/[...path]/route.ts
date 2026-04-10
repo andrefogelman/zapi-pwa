@@ -1,31 +1,46 @@
 import { getUserFromToken } from "@/lib/supabase-server";
 
+export const dynamic = "force-dynamic";
+
 const WACLAW_URL = process.env.WACLAW_URL || "https://worker5.taile4c10f.ts.net";
 const WACLAW_API_KEY = process.env.WACLAW_API_KEY || "waclaw-dev-key";
 
 async function proxyToWaclaw(request: Request, path: string) {
-  const token = request.headers.get("Authorization")?.replace("Bearer ", "");
+  const url = new URL(request.url);
+
+  // Auth: prefer Authorization header, fall back to ?token= query param
+  // (needed for media URLs used directly in <audio>/<img> src).
+  let token = request.headers.get("Authorization")?.replace("Bearer ", "");
+  if (!token) token = url.searchParams.get("token") || undefined;
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const user = await getUserFromToken(token);
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const url = new URL(request.url);
-  const targetUrl = `${WACLAW_URL}/${path}${url.search}`;
+  // Strip the token from the upstream search params so it never reaches waclaw
+  const upstreamParams = new URLSearchParams(url.searchParams);
+  upstreamParams.delete("token");
+  const upstreamSearch = upstreamParams.toString();
+  const targetUrl = `${WACLAW_URL}/${path}${upstreamSearch ? `?${upstreamSearch}` : ""}`;
 
-  const res = await fetch(targetUrl, {
+  const upstream = await fetch(targetUrl, {
     method: request.method,
     headers: {
       "X-API-Key": WACLAW_API_KEY,
-      "Content-Type": "application/json",
+      ...(request.method !== "GET" && { "Content-Type": "application/json" }),
     },
     body: request.method !== "GET" ? await request.text() : undefined,
   });
 
-  const data = await res.text();
-  return new Response(data, {
-    status: res.status,
-    headers: { "Content-Type": "application/json" },
+  // Pass through Content-Type (binary streams for media, JSON otherwise)
+  const contentType = upstream.headers.get("Content-Type") || "application/json";
+  const cacheControl = upstream.headers.get("Cache-Control");
+  const headers: Record<string, string> = { "Content-Type": contentType };
+  if (cacheControl) headers["Cache-Control"] = cacheControl;
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers,
   });
 }
 

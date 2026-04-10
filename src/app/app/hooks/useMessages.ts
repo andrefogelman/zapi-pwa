@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useWaclaw } from "./useWaclaw";
+import { useAuth } from "@/lib/use-auth";
 
 export interface Message {
   id: string;
@@ -38,6 +39,7 @@ export interface ReplyTarget {
 
 export function useMessages(sessionId: string | null, chatJid: string | null) {
   const { fetcher } = useWaclaw(sessionId);
+  const { session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -46,15 +48,27 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
   const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
   const initialLoad = useRef(true);
 
+  // Rewrite relative mediaUrl ("media/:jid/:msgId") into a full proxy URL
+  // with the user's access token so <audio>/<img> src can hit it directly.
+  const enrichMessage = useCallback((m: Message): Message => {
+    if (!m.mediaUrl || !sessionId || !session?.access_token) return m;
+    // Already an absolute URL — leave untouched
+    if (m.mediaUrl.startsWith("http") || m.mediaUrl.startsWith("/")) return m;
+    return {
+      ...m,
+      mediaUrl: `/api/waclaw/sessions/${sessionId}/${m.mediaUrl}?token=${encodeURIComponent(session.access_token)}`,
+    };
+  }, [sessionId, session?.access_token]);
+
   const loadMessages = useCallback(async () => {
     if (!chatJid) return;
     setLoading(true);
     setHasOlder(true);
     initialLoad.current = true;
     const data = await fetcher(`messages/${encodeURIComponent(chatJid)}?limit=80`);
-    if (Array.isArray(data)) setMessages(data);
+    if (Array.isArray(data)) setMessages(data.map(enrichMessage));
     setLoading(false);
-  }, [chatJid, fetcher]);
+  }, [chatJid, fetcher, enrichMessage]);
 
   const loadOlder = useCallback(async () => {
     if (!chatJid || loadingOlder || !hasOlder || messages.length === 0) return;
@@ -63,10 +77,10 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
     const data = await fetcher(`messages/${encodeURIComponent(chatJid)}?limit=50&before=${oldest}`);
     if (Array.isArray(data)) {
       if (data.length === 0) setHasOlder(false);
-      else setMessages((prev) => [...data, ...prev]);
+      else setMessages((prev) => [...data.map(enrichMessage), ...prev]);
     }
     setLoadingOlder(false);
-  }, [chatJid, fetcher, loadingOlder, hasOlder, messages]);
+  }, [chatJid, fetcher, loadingOlder, hasOlder, messages, enrichMessage]);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!chatJid || !text.trim() || sending) return;
