@@ -19,6 +19,18 @@ export async function transcribeAudio(audioBuffer: ArrayBuffer): Promise<string>
   return response.text;
 }
 
+export async function generateImage(prompt: string): Promise<{ base64: string; mimeType: string }> {
+  const response = await getOpenAI().images.generate({
+    model: "gpt-image-1",
+    prompt,
+    size: "1024x1024",
+    n: 1,
+  });
+  const b64 = response.data?.[0]?.b64_json;
+  if (!b64) throw new Error("No image returned from OpenAI");
+  return { base64: b64, mimeType: "image/png" };
+}
+
 export async function summarizeText(text: string): Promise<string> {
   const response = await getOpenAI().chat.completions.create({
     model: "gpt-4.1-mini",

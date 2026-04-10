@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useWaclaw } from "./useWaclaw";
 import { useAuth } from "@/lib/use-auth";
+import { parseVCard } from "../lib/vcard";
 
 export interface Message {
   id: string;
@@ -50,14 +51,29 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
 
   // Rewrite relative mediaUrl ("media/:jid/:msgId") into a full proxy URL
   // with the user's access token so <audio>/<img> src can hit it directly.
+  // Also parse vCard payloads into structured contact data for rendering.
   const enrichMessage = useCallback((m: Message): Message => {
-    if (!m.mediaUrl || !sessionId || !session?.access_token) return m;
-    // Already an absolute URL — leave untouched
-    if (m.mediaUrl.startsWith("http") || m.mediaUrl.startsWith("/")) return m;
-    return {
-      ...m,
-      mediaUrl: `/api/waclaw/sessions/${sessionId}/${m.mediaUrl}?token=${encodeURIComponent(session.access_token)}`,
-    };
+    let enriched = m;
+
+    if (m.mediaUrl && sessionId && session?.access_token) {
+      const isRelative = !m.mediaUrl.startsWith("http") && !m.mediaUrl.startsWith("/");
+      if (isRelative) {
+        enriched = {
+          ...enriched,
+          mediaUrl: `/api/waclaw/sessions/${sessionId}/${m.mediaUrl}?token=${encodeURIComponent(session.access_token)}`,
+        };
+      }
+    }
+
+    // Parse vCard if this looks like a contact message and we don't have
+    // structured contact data yet. wacli currently drops these, but the
+    // parser is in place for when that changes.
+    if (!enriched.contact && (m.type === "vcard" || m.type === "contact")) {
+      const parsed = parseVCard(m.text) || parseVCard(m.mediaCaption);
+      if (parsed) enriched = { ...enriched, contact: parsed };
+    }
+
+    return enriched;
   }, [sessionId, session?.access_token]);
 
   const loadMessages = useCallback(async () => {

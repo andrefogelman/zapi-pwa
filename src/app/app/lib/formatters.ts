@@ -45,6 +45,15 @@ export function getInitial(name: string): string {
   return clean.charAt(0).toUpperCase() || "?";
 }
 
+// DiceBear deterministic avatars. A JID always produces the same avatar,
+// giving contacts a consistent visual identity while wacli lacks real
+// profile pic support. Groups get a distinct style.
+export function generateAvatarUrl(jid: string, isGroup: boolean): string {
+  const seed = encodeURIComponent(jid);
+  const style = isGroup ? "shapes" : "initials";
+  return `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&backgroundColor=00a884,018a72,25d366,128c7e&radius=50`;
+}
+
 export type ChatTab = "all" | "dms" | "groups" | "channels";
 export function getChatTab(kind: string, jid: string): ChatTab {
   if (jid.includes("@newsletter") || jid === "status@broadcast") return "channels";

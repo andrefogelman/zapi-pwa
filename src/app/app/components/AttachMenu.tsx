@@ -8,9 +8,10 @@ interface Props {
   onPickPhoto: () => void;
   onPickDocument: () => void;
   onPickContact: () => void;
+  onPickAIImage: () => void;
 }
 
-export function AttachMenu({ open, onClose, onPickPhoto, onPickDocument, onPickContact }: Props) {
+export function AttachMenu({ open, onClose, onPickPhoto, onPickDocument, onPickContact, onPickAIImage }: Props) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,6 +53,10 @@ export function AttachMenu({ open, onClose, onPickPhoto, onPickDocument, onPickC
       <button className="wa-attach-item" onClick={pick(onPickContact)}>
         <span className="wa-attach-icon wa-attach-contact">👤</span>
         <span>Contato</span>
+      </button>
+      <button className="wa-attach-item" onClick={pick(onPickAIImage)}>
+        <span className="wa-attach-icon wa-attach-ai">✨</span>
+        <span>Imagem IA</span>
       </button>
       <button className="wa-attach-item disabled" disabled title="Em breve">
         <span className="wa-attach-icon wa-attach-poll">📊</span>

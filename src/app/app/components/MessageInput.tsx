@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import type { ReplyTarget } from "../hooks/useMessages";
 import { AttachMenu } from "./AttachMenu";
+import { AIImageModal } from "./AIImageModal";
 
 interface Props {
   value: string;
@@ -24,6 +25,7 @@ export function MessageInput({
   onCancelReply,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const contactInputRef = useRef<HTMLInputElement>(null);
@@ -77,6 +79,7 @@ export function MessageInput({
             onPickPhoto={() => photoInputRef.current?.click()}
             onPickDocument={() => documentInputRef.current?.click()}
             onPickContact={() => contactInputRef.current?.click()}
+            onPickAIImage={() => setAiModalOpen(true)}
           />
         </div>
         <input
@@ -114,6 +117,12 @@ export function MessageInput({
         accept=".vcf,text/vcard"
         hidden
         onChange={handleFileChange}
+      />
+
+      <AIImageModal
+        open={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        onSendGenerated={onSendFile}
       />
     </div>
   );

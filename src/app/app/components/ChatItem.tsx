@@ -1,4 +1,4 @@
-import { formatChatName, formatChatTime, getInitial } from "../lib/formatters";
+import { formatChatName, formatChatTime, generateAvatarUrl } from "../lib/formatters";
 import type { Chat } from "../hooks/useChats";
 
 interface Props {
@@ -9,15 +9,12 @@ interface Props {
 
 export function ChatItem({ chat, selected, onClick }: Props) {
   const displayName = formatChatName(chat.jid, chat.name);
+  const avatarUrl = chat.profilePicUrl || generateAvatarUrl(chat.jid, chat.isGroup);
 
   return (
     <div className={`wa-chat-item ${selected ? "active" : ""}`} onClick={onClick}>
       <div className={`wa-avatar ${chat.isGroup ? "group" : ""}`}>
-        {chat.profilePicUrl ? (
-          <img src={chat.profilePicUrl} alt="" />
-        ) : (
-          getInitial(displayName)
-        )}
+        <img src={avatarUrl} alt="" />
       </div>
       <div className="wa-chat-body">
         <div className="wa-chat-row">
