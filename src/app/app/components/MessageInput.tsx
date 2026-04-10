@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { ReplyTarget } from "../hooks/useMessages";
 import { AttachMenu } from "./AttachMenu";
 import { AIImageModal } from "./AIImageModal";
+import { ContactPickerModal } from "./ContactPickerModal";
 
 interface Props {
   value: string;
@@ -26,9 +27,9 @@ export function MessageInput({
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
-  const contactInputRef = useRef<HTMLInputElement>(null);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -78,7 +79,7 @@ export function MessageInput({
             onClose={() => setMenuOpen(false)}
             onPickPhoto={() => photoInputRef.current?.click()}
             onPickDocument={() => documentInputRef.current?.click()}
-            onPickContact={() => contactInputRef.current?.click()}
+            onPickContact={() => setContactModalOpen(true)}
             onPickAIImage={() => setAiModalOpen(true)}
           />
         </div>
@@ -111,18 +112,16 @@ export function MessageInput({
         hidden
         onChange={handleFileChange}
       />
-      <input
-        ref={contactInputRef}
-        type="file"
-        accept=".vcf,text/vcard"
-        hidden
-        onChange={handleFileChange}
-      />
 
       <AIImageModal
         open={aiModalOpen}
         onClose={() => setAiModalOpen(false)}
         onSendGenerated={onSendFile}
+      />
+      <ContactPickerModal
+        open={contactModalOpen}
+        onClose={() => setContactModalOpen(false)}
+        onSend={onSendFile}
       />
     </div>
   );

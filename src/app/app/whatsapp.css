@@ -1193,6 +1193,136 @@
   cursor: not-allowed;
 }
 
+.wa-modal-lg {
+  max-width: 520px;
+  max-height: 85vh;
+}
+
+.wa-modal-tabs {
+  margin: 0;
+  background: #1f2c33;
+}
+
+.wa-modal-search {
+  width: 100%;
+  background: #2a3942;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #e9edef;
+  font-size: 14px;
+  outline: none;
+  margin-bottom: 12px;
+}
+
+.wa-modal-search::placeholder {
+  color: #8696a0;
+}
+
+.wa-contact-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.wa-contact-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.wa-contact-list-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.wa-contact-list-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wa-contact-list-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #00a884;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.wa-contact-list-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.wa-contact-list-name {
+  color: #e9edef;
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wa-contact-list-sub {
+  color: #8696a0;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.wa-contact-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #8696a0;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+
+.wa-manual-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wa-modal-input {
+  width: 100%;
+  background: #2a3942;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #e9edef;
+  font-size: 14px;
+  outline: none;
+  margin-bottom: 10px;
+}
+
+.wa-modal-input::placeholder {
+  color: #8696a0;
+}
+
+.wa-device-btn {
+  margin-bottom: 12px;
+  width: 100%;
+}
+
 /* ===== Profile Photo in Avatar ===== */
 
 .wa-avatar img {

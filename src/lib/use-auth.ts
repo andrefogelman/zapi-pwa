@@ -29,7 +29,16 @@ export function useAuth() {
   const signInWithGoogle = () =>
     supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        // Request the People API contacts scope so we can read the user's
+        // Google Contacts client-side via session.provider_token.
+        scopes: "https://www.googleapis.com/auth/contacts.readonly",
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+      },
     });
 
   const signInWithEmail = (email: string, password: string) =>
