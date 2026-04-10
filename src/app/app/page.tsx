@@ -262,8 +262,31 @@ export default function AppMain() {
     return groups;
   }
 
+  function formatChatName(jid: string, name: string): string {
+    // If name is the same as the JID or looks like a raw JID, try to format
+    if (jid.includes("@newsletter")) {
+      return name === jid ? "Canal" : name;
+    }
+    if (name === jid || name.includes("@")) {
+      // Extract phone from JID like "5511999999999@s.whatsapp.net"
+      const phone = jid.split("@")[0];
+      if (/^\d{10,15}$/.test(phone)) {
+        // Format Brazilian phone: +55 (11) 99999-9999
+        if (phone.startsWith("55") && phone.length >= 12) {
+          const ddd = phone.slice(2, 4);
+          const num = phone.slice(4);
+          return `(${ddd}) ${num.slice(0, -4)}-${num.slice(-4)}`;
+        }
+        return `+${phone}`;
+      }
+      return phone;
+    }
+    return name;
+  }
+
   function getInitial(name: string) {
-    return name.charAt(0).toUpperCase();
+    const clean = name.replace(/[^a-zA-ZÀ-ÿ0-9]/g, "").charAt(0);
+    return clean.toUpperCase() || "?";
   }
 
   const chatOpen = !!selectedChat;
@@ -331,11 +354,11 @@ export default function AppMain() {
               onClick={() => openChat(chat)}
             >
               <div className={`wa-avatar ${chat.isGroup ? "group" : ""}`}>
-                {getInitial(chat.name)}
+                {getInitial(formatChatName(chat.jid, chat.name))}
               </div>
               <div className="wa-chat-info">
                 <div className="wa-chat-top">
-                  <span className="wa-chat-name">{chat.name}</span>
+                  <span className="wa-chat-name">{formatChatName(chat.jid, chat.name)}</span>
                   <span className="wa-chat-time">{formatChatTime(chat.lastTs)}</span>
                 </div>
                 <div className="wa-chat-preview">
@@ -377,10 +400,10 @@ export default function AppMain() {
                 ←
               </button>
               <div className={`wa-avatar ${selectedChat.isGroup ? "group" : ""}`} style={{ width: 40, height: 40, fontSize: 16 }}>
-                {getInitial(selectedChat.name)}
+                {getInitial(formatChatName(selectedChat.jid, selectedChat.name))}
               </div>
               <div className="wa-chat-header-info">
-                <div className="wa-chat-header-name">{selectedChat.name}</div>
+                <div className="wa-chat-header-name">{formatChatName(selectedChat.jid, selectedChat.name)}</div>
                 <div className="wa-chat-header-status">
                   {selectedChat.isGroup ? "Grupo" : selectedChat.jid.split("@")[0]}
                   {selectedChat.msgCount > 0 && ` · ${selectedChat.msgCount} mensagens`}
