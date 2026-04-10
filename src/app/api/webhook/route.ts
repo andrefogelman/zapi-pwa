@@ -1,4 +1,5 @@
 import { getSupabaseServer } from "@/lib/supabase-server";
+import { TranscriptionQueue } from "@/lib/queue";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
 
   // Handle incoming message
   if (event === "message" || event === "message-status-update" || !event) {
-    const { error } = await supabase.from("messages").insert({
+    const { data, error } = await supabase.from("messages").insert({
       instance_id: instance.id,
       message_id: messageId || crypto.randomUUID(),
       chat_jid: chatId || phone || "unknown",
@@ -35,10 +36,22 @@ export async function POST(request: Request) {
       from_me: fromMe || false,
       media_url: audio?.audioUrl || body.image?.imageUrl || body.video?.videoUrl || null,
       status: type === "audio" ? "pending_transcription" : "received",
-    });
+    }).select("id").single();
 
     if (error) {
       console.error("Failed to save message:", error.message);
+    }
+
+    // Queue audio for transcription
+    if ((type === "audio" || audio) && !error && data) {
+      const audioUrl = audio?.audioUrl;
+      if (audioUrl) {
+        await TranscriptionQueue.enqueue({
+          instanceId: instance.id,
+          messageId: data.id,
+          audioUrl,
+        });
+      }
     }
   }
 
