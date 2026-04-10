@@ -23,8 +23,11 @@ export async function GET(request: Request) {
 
   if (!instance) return Response.json({ error: "Instance not found" }, { status: 404 });
 
+  const page = url.searchParams.get("page") || "1";
+  const pageSize = url.searchParams.get("pageSize") || "100";
+
   const client = await getZapiClient(instance_id);
-  const res = await fetch(`${client.baseUrl}/chats`, { headers: client.headers });
+  const res = await fetch(`${client.baseUrl}/chats?page=${page}&pageSize=${pageSize}`, { headers: client.headers });
 
   if (!res.ok) {
     return Response.json({ error: `Z-API error: ${await res.text()}` }, { status: res.status });

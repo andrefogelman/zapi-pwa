@@ -4,8 +4,21 @@ import { TranscriptionQueue } from "@/lib/queue";
 export async function POST(request: Request) {
   const body = await request.json();
 
-  // Z-API sends different event types
-  const { phone, event, messageId, chatId, text, type, fromMe, audio, instanceId } = body;
+  // Z-API webhook payload fields
+  const {
+    instanceId,
+    messageId,
+    phone,
+    fromMe,
+    text,
+    audio,
+    image,
+    video,
+    document: doc,
+    senderName,
+    chatName,
+    isGroup,
+  } = body;
 
   if (!instanceId) {
     return Response.json({ error: "Missing instanceId" }, { status: 400 });
@@ -21,38 +34,63 @@ export async function POST(request: Request) {
     .single();
 
   if (!instance) {
-    return Response.json({ error: "Unknown instance" }, { status: 404 });
+    console.error(`Webhook: unknown instanceId ${instanceId}`);
+    return Response.json({ received: true });
   }
 
-  // Handle incoming message
-  if (event === "message" || event === "message-status-update" || !event) {
-    const { data, error } = await supabase.from("messages").insert({
-      instance_id: instance.id,
-      message_id: messageId || crypto.randomUUID(),
-      chat_jid: chatId || phone || "unknown",
-      sender: fromMe ? "me" : (phone || "unknown"),
-      text: text || null,
-      type: type || "text",
-      from_me: fromMe || false,
-      media_url: audio?.audioUrl || body.image?.imageUrl || body.video?.videoUrl || null,
-      status: type === "audio" ? "pending_transcription" : "received",
-    }).select("id").single();
+  // Determine message type and content
+  let msgType = "text";
+  let msgText: string | null = null;
+  let mediaUrl: string | null = null;
 
-    if (error) {
-      console.error("Failed to save message:", error.message);
-    }
+  if (audio) {
+    msgType = "audio";
+    mediaUrl = audio.audioUrl || null;
+  } else if (image) {
+    msgType = "image";
+    msgText = image.caption || null;
+    mediaUrl = image.imageUrl || null;
+  } else if (video) {
+    msgType = "video";
+    msgText = video.caption || null;
+    mediaUrl = video.videoUrl || null;
+  } else if (doc) {
+    msgType = "document";
+    msgText = doc.caption || null;
+    mediaUrl = doc.documentUrl || null;
+  } else if (text) {
+    msgText = text.message || null;
+  }
 
-    // Queue audio for transcription
-    if ((type === "audio" || audio) && !error && data) {
-      const audioUrl = audio?.audioUrl;
-      if (audioUrl) {
-        await TranscriptionQueue.enqueue({
-          instanceId: instance.id,
-          messageId: data.id,
-          audioUrl,
-        });
-      }
-    }
+  // Build chat JID
+  const chatJid = isGroup
+    ? (phone || "unknown")
+    : (phone || "unknown");
+
+  const { data, error } = await supabase.from("messages").insert({
+    instance_id: instance.id,
+    message_id: messageId || crypto.randomUUID(),
+    chat_jid: chatJid,
+    sender: fromMe ? "me" : (senderName || chatName || phone || "unknown"),
+    text: msgText,
+    type: msgType,
+    from_me: fromMe || false,
+    media_url: mediaUrl,
+    status: msgType === "audio" ? "pending_transcription" : "received",
+    timestamp: body.momment ? new Date(body.momment).toISOString() : new Date().toISOString(),
+  }).select("id").single();
+
+  if (error) {
+    console.error("Failed to save message:", error.message);
+  }
+
+  // Queue audio for transcription
+  if (msgType === "audio" && mediaUrl && !error && data) {
+    await TranscriptionQueue.enqueue({
+      instanceId: instance.id,
+      messageId: data.id,
+      audioUrl: mediaUrl,
+    });
   }
 
   return Response.json({ received: true });
