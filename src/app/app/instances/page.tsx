@@ -56,7 +56,10 @@ export default function InstancesPage() {
     });
     if (res.ok) {
       const data = await res.json();
-      setQrData({ instanceId, qr: data.value || data.qrcode });
+      // Z-API may return full data URL or just base64
+      const qrValue = data.value || data.qrcode || "";
+      const qrSrc = qrValue.startsWith("data:") ? qrValue : `data:image/png;base64,${qrValue}`;
+      setQrData({ instanceId, qr: qrSrc });
       setMsg("Escaneie o QR Code no WhatsApp");
       pollStatus(instanceId);
     } else {
@@ -109,7 +112,7 @@ export default function InstancesPage() {
 
       {qrData && (
         <div style={{ textAlign: "center", padding: "1rem", border: "1px solid #ddd", borderRadius: 4, marginBottom: "1rem" }}>
-          <img src={`data:image/png;base64,${qrData.qr}`} alt="QR Code" style={{ maxWidth: 256 }} />
+          <img src={qrData.qr} alt="QR Code" style={{ maxWidth: 256 }} />
           <p style={{ fontSize: "0.85rem", color: "#666" }}>Escaneie com o WhatsApp</p>
         </div>
       )}
