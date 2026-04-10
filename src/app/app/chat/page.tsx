@@ -2,72 +2,61 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/use-auth";
-import { useRealtime } from "@/lib/use-realtime";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
 
-interface Conversation {
-  chat_jid: string;
-  last_message: string | null;
-  last_type: string;
-  last_time: string;
+interface Chat {
+  phone: string;
+  name: string;
+  isGroup: boolean;
+  lastMessageTime: number;
   unread: number;
 }
 
 export default function ChatListPage() {
   const { session } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [chats, setChats] = useState<Chat[]>([]);
   const [selectedInstance, setSelectedInstance] = useState<string | null>(null);
-  const [instances, setInstances] = useState<{ id: string; name: string }[]>([]);
+  const [instances, setInstances] = useState<{ id: string; name: string; status: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${session?.access_token}`,
+  };
 
   useEffect(() => {
     if (!session) return;
-    fetch("/api/instances", {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    }).then((r) => r.json()).then((data) => {
-      setInstances(data);
-      if (data.length > 0) setSelectedInstance(data[0].id);
-    });
+    fetch("/api/instances", { headers })
+      .then((r) => r.json())
+      .then((data) => {
+        setInstances(data);
+        const connected = data.find((i: { status: string }) => i.status === "connected");
+        if (connected) setSelectedInstance(connected.id);
+        else if (data.length > 0) setSelectedInstance(data[0].id);
+      });
   }, [session]);
 
   useEffect(() => {
     if (!selectedInstance) return;
-    loadConversations();
+    loadChats();
   }, [selectedInstance]);
 
-  async function loadConversations() {
-    const supabase = getSupabaseBrowser();
-    const { data } = await supabase
-      .from("messages")
-      .select("chat_jid, text, type, timestamp")
-      .eq("instance_id", selectedInstance!)
-      .order("timestamp", { ascending: false })
-      .limit(200);
-
-    if (!data) return;
-
-    // Group by chat_jid, take most recent
-    const map = new Map<string, Conversation>();
-    for (const msg of data) {
-      if (!map.has(msg.chat_jid)) {
-        map.set(msg.chat_jid, {
-          chat_jid: msg.chat_jid,
-          last_message: msg.text,
-          last_type: msg.type,
-          last_time: msg.timestamp,
-          unread: 0,
-        });
-      }
+  async function loadChats() {
+    setLoading(true);
+    const res = await fetch(`/api/chats?instance_id=${selectedInstance}`, { headers });
+    if (res.ok) {
+      setChats(await res.json());
     }
-    setConversations(Array.from(map.values()));
+    setLoading(false);
   }
 
-  // Live updates
-  useRealtime({
-    table: "messages",
-    filter: selectedInstance ? `instance_id=eq.${selectedInstance}` : undefined,
-    event: "INSERT",
-    onRecord: () => loadConversations(),
-  });
+  function formatTime(ts: number) {
+    if (!ts) return "";
+    const d = new Date(ts);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  }
 
   return (
     <div style={{ display: "flex", height: "100%" }}>
@@ -91,32 +80,62 @@ export default function ChatListPage() {
           </div>
         )}
 
-        {conversations.length === 0 && (
+        {loading && (
           <p style={{ padding: "2rem", color: "#999", textAlign: "center" }}>
-            Nenhuma conversa ainda
+            Carregando conversas...
           </p>
         )}
 
-        {conversations.map((conv) => (
+        {!loading && chats.length === 0 && (
+          <p style={{ padding: "2rem", color: "#999", textAlign: "center" }}>
+            Nenhuma conversa
+          </p>
+        )}
+
+        {chats.map((chat) => (
           <a
-            key={conv.chat_jid}
-            href={`/app/chat/${encodeURIComponent(conv.chat_jid)}`}
+            key={chat.phone}
+            href={`/app/chat/${encodeURIComponent(chat.phone)}`}
             style={{
-              display: "block", padding: "0.75rem 1rem", borderBottom: "1px solid #f0f0f0",
-              textDecoration: "none", color: "inherit",
+              display: "flex", padding: "0.75rem 1rem", borderBottom: "1px solid #f0f0f0",
+              textDecoration: "none", color: "inherit", alignItems: "center", gap: "0.75rem",
             }}
           >
-            <div style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: 2 }}>
-              {conv.chat_jid.replace(/@.*/, "")}
+            {/* Avatar placeholder */}
+            <div style={{
+              width: 40, height: 40, borderRadius: "50%",
+              background: chat.isGroup ? "#25d366" : "#075e54",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", fontSize: "0.8rem", fontWeight: 600, flexShrink: 0,
+            }}>
+              {chat.name.charAt(0).toUpperCase()}
             </div>
-            <div style={{ fontSize: "0.82rem", color: "#667", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {conv.last_type === "audio" ? "Audio" : (conv.last_message || "...")}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontWeight: 600, fontSize: "0.95rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {chat.name}
+                </span>
+                <span style={{ fontSize: "0.72rem", color: "#999", flexShrink: 0, marginLeft: "0.5rem" }}>
+                  {formatTime(chat.lastMessageTime)}
+                </span>
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "#667", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {chat.isGroup ? "Grupo" : chat.phone}
+              </div>
             </div>
+            {chat.unread > 0 && (
+              <span style={{
+                background: "#25d366", color: "#fff", borderRadius: 12,
+                padding: "0.1rem 0.5rem", fontSize: "0.72rem", fontWeight: 600,
+              }}>
+                {chat.unread}
+              </span>
+            )}
           </a>
         ))}
       </div>
 
-      {/* Placeholder for when no chat is selected */}
+      {/* Placeholder */}
       <div style={{
         flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
         background: "#f0f2f5", color: "#999",
