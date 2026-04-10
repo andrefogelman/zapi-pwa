@@ -3,19 +3,29 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/use-auth";
 
+interface Instance {
+  id: string;
+  name: string;
+  status: string;
+  provider: string;
+  waclaw_session_id: string | null;
+}
+
 interface Chat {
-  phone: string;
+  // Unified format
+  jid: string;
   name: string;
   isGroup: boolean;
-  lastMessageTime: number;
+  lastTs: number;
+  lastMessage: string | null;
   unread: number;
 }
 
 export default function ChatListPage() {
   const { session } = useAuth();
   const [chats, setChats] = useState<Chat[]>([]);
-  const [selectedInstance, setSelectedInstance] = useState<string | null>(null);
-  const [instances, setInstances] = useState<{ id: string; name: string; status: string }[]>([]);
+  const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null);
+  const [instances, setInstances] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(true);
 
   const headers: Record<string, string> = {
@@ -26,11 +36,10 @@ export default function ChatListPage() {
     if (!session) return;
     fetch("/api/instances", { headers })
       .then((r) => r.json())
-      .then((data) => {
+      .then((data: Instance[]) => {
         setInstances(data);
-        const connected = data.find((i: { status: string }) => i.status === "connected");
-        if (connected) setSelectedInstance(connected.id);
-        else if (data.length > 0) setSelectedInstance(data[0].id);
+        const connected = data.find((i) => i.status === "connected");
+        setSelectedInstance(connected || data[0] || null);
       });
   }, [session]);
 
@@ -41,10 +50,40 @@ export default function ChatListPage() {
 
   async function loadChats() {
     setLoading(true);
-    const res = await fetch(`/api/chats?instance_id=${selectedInstance}`, { headers });
-    if (res.ok) {
-      setChats(await res.json());
+
+    if (selectedInstance?.provider === "waclaw" && selectedInstance.waclaw_session_id) {
+      // WaClaw: fetch from waclaw proxy
+      const res = await fetch(
+        `/api/waclaw/sessions/${selectedInstance.waclaw_session_id}/chats`,
+        { headers }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setChats(data.map((c: Record<string, unknown>) => ({
+          jid: c.jid as string,
+          name: (c.name as string) || (c.jid as string).split("@")[0],
+          isGroup: c.isGroup as boolean,
+          lastTs: c.lastTs as number,
+          lastMessage: c.lastMessage as string | null,
+          unread: 0,
+        })));
+      }
+    } else {
+      // Z-API: fetch from /api/chats
+      const res = await fetch(`/api/chats?instance_id=${selectedInstance?.id}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setChats(data.map((c: Record<string, unknown>) => ({
+          jid: c.phone as string,
+          name: (c.name as string) || (c.phone as string),
+          isGroup: c.isGroup as boolean,
+          lastTs: c.lastMessageTime as number,
+          lastMessage: null,
+          unread: (c.unread as number) || 0,
+        })));
+      }
     }
+
     setLoading(false);
   }
 
@@ -58,50 +97,45 @@ export default function ChatListPage() {
     return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
   }
 
+  const provider = selectedInstance?.provider || "zapi";
+
   return (
     <div style={{ display: "flex", height: "100%" }}>
-      {/* Sidebar: conversation list */}
-      <div style={{
-        width: 350, borderRight: "1px solid #ddd", overflowY: "auto",
-        background: "#fff",
-      }}>
+      <div style={{ width: 350, borderRight: "1px solid #ddd", overflowY: "auto", background: "#fff" }}>
         {/* Instance selector */}
         {instances.length > 1 && (
           <div style={{ padding: "0.5rem", borderBottom: "1px solid #eee" }}>
             <select
-              value={selectedInstance || ""}
-              onChange={(e) => setSelectedInstance(e.target.value)}
+              value={selectedInstance?.id || ""}
+              onChange={(e) => setSelectedInstance(instances.find((i) => i.id === e.target.value) || null)}
               style={{ width: "100%", padding: "0.4rem" }}
             >
               {instances.map((i) => (
-                <option key={i.id} value={i.id}>{i.name}</option>
+                <option key={i.id} value={i.id}>
+                  {i.name} ({i.provider === "waclaw" ? "WaClaw" : "Z-API"})
+                </option>
               ))}
             </select>
           </div>
         )}
 
-        {loading && (
-          <p style={{ padding: "2rem", color: "#999", textAlign: "center" }}>
-            Carregando conversas...
-          </p>
-        )}
+        {/* Provider badge */}
+        <div style={{ padding: "0.3rem 1rem", background: provider === "waclaw" ? "#e8f5e9" : "#e3f2fd", fontSize: "0.75rem", color: "#555" }}>
+          {provider === "waclaw" ? "WaClaw — Histórico completo" : "Z-API — Mensagens em tempo real"}
+        </div>
 
-        {!loading && chats.length === 0 && (
-          <p style={{ padding: "2rem", color: "#999", textAlign: "center" }}>
-            Nenhuma conversa
-          </p>
-        )}
+        {loading && <p style={{ padding: "2rem", color: "#999", textAlign: "center" }}>Carregando conversas...</p>}
+        {!loading && chats.length === 0 && <p style={{ padding: "2rem", color: "#999", textAlign: "center" }}>Nenhuma conversa</p>}
 
         {chats.map((chat) => (
           <a
-            key={chat.phone}
-            href={`/app/chat/${encodeURIComponent(chat.phone)}`}
+            key={chat.jid}
+            href={`/app/chat/${encodeURIComponent(chat.jid)}?provider=${provider}&session=${selectedInstance?.waclaw_session_id || ""}&instance=${selectedInstance?.id || ""}`}
             style={{
               display: "flex", padding: "0.75rem 1rem", borderBottom: "1px solid #f0f0f0",
               textDecoration: "none", color: "inherit", alignItems: "center", gap: "0.75rem",
             }}
           >
-            {/* Avatar placeholder */}
             <div style={{
               width: 40, height: 40, borderRadius: "50%",
               background: chat.isGroup ? "#25d366" : "#075e54",
@@ -116,18 +150,15 @@ export default function ChatListPage() {
                   {chat.name}
                 </span>
                 <span style={{ fontSize: "0.72rem", color: "#999", flexShrink: 0, marginLeft: "0.5rem" }}>
-                  {formatTime(chat.lastMessageTime)}
+                  {formatTime(chat.lastTs)}
                 </span>
               </div>
               <div style={{ fontSize: "0.82rem", color: "#667", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {chat.isGroup ? "Grupo" : chat.phone}
+                {chat.lastMessage || (chat.isGroup ? "Grupo" : chat.jid.split("@")[0])}
               </div>
             </div>
             {chat.unread > 0 && (
-              <span style={{
-                background: "#25d366", color: "#fff", borderRadius: 12,
-                padding: "0.1rem 0.5rem", fontSize: "0.72rem", fontWeight: 600,
-              }}>
+              <span style={{ background: "#25d366", color: "#fff", borderRadius: 12, padding: "0.1rem 0.5rem", fontSize: "0.72rem", fontWeight: 600 }}>
                 {chat.unread}
               </span>
             )}
@@ -135,11 +166,7 @@ export default function ChatListPage() {
         ))}
       </div>
 
-      {/* Placeholder */}
-      <div style={{
-        flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-        background: "#f0f2f5", color: "#999",
-      }}>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: "#f0f2f5", color: "#999" }}>
         Selecione uma conversa
       </div>
     </div>
