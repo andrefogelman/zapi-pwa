@@ -14,6 +14,7 @@ export interface Chat {
   msgCount: number;
   isGroup: boolean;
   tab: ChatTab;
+  profilePicUrl: string | null;
 }
 
 export function useChats(sessionId: string | null) {
@@ -38,6 +39,7 @@ export function useChats(sessionId: string | null) {
           msgCount: (c.msgCount as number) || 0,
           isGroup: (c.isGroup as boolean) || false,
           tab: getChatTab((c.kind as string) || "unknown", c.jid as string),
+          profilePicUrl: (c.profilePicUrl as string) || null,
         })));
       }
       setLoading(false);

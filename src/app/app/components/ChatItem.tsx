@@ -13,7 +13,11 @@ export function ChatItem({ chat, selected, onClick }: Props) {
   return (
     <div className={`wa-chat-item ${selected ? "active" : ""}`} onClick={onClick}>
       <div className={`wa-avatar ${chat.isGroup ? "group" : ""}`}>
-        {getInitial(displayName)}
+        {chat.profilePicUrl ? (
+          <img src={chat.profilePicUrl} alt="" />
+        ) : (
+          getInitial(displayName)
+        )}
       </div>
       <div className="wa-chat-body">
         <div className="wa-chat-row">

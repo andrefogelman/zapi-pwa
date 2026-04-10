@@ -14,8 +14,19 @@ export interface Message {
   text: string | null;
   type: string;
   mediaCaption: string | null;
+  mediaUrl: string | null;
   filename: string | null;
   mimeType: string | null;
+  transcription: string | null;
+  transcriptionStatus: string | null;
+  contact: MessageContact | null;
+}
+
+export interface MessageContact {
+  displayName: string;
+  phones: { phone: string; type?: string }[];
+  emails?: { email: string }[];
+  organization?: string;
 }
 
 export interface ReplyTarget {
@@ -75,8 +86,12 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
       text,
       type: "text",
       mediaCaption: null,
+      mediaUrl: null,
       filename: null,
       mimeType: null,
+      transcription: null,
+      transcriptionStatus: null,
+      contact: null,
     }]);
     setReplyTarget(null);
     setSending(false);
