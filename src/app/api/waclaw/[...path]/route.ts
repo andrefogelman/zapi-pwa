@@ -1,6 +1,6 @@
 import { getUserFromToken } from "@/lib/supabase-server";
 
-const WACLAW_URL = process.env.WACLAW_URL || "http://100.66.83.22:3100";
+const WACLAW_URL = process.env.WACLAW_URL || "https://worker5.taile4c10f.ts.net";
 const WACLAW_API_KEY = process.env.WACLAW_API_KEY || "waclaw-dev-key";
 
 async function proxyToWaclaw(request: Request, path: string) {
