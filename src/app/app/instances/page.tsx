@@ -56,14 +56,25 @@ export default function InstancesPage() {
     });
     if (res.ok) {
       const data = await res.json();
-      // Z-API may return full data URL or just base64
+      // Z-API returns { connected: true } if already connected
+      if (data.connected) {
+        setMsg("Já conectado!");
+        loadInstances();
+        return;
+      }
+      // Z-API returns { value: "data:image/png;base64,..." } for QR
       const qrValue = data.value || data.qrcode || "";
+      if (!qrValue) {
+        setMsg("Erro: QR code vazio na resposta");
+        return;
+      }
       const qrSrc = qrValue.startsWith("data:") ? qrValue : `data:image/png;base64,${qrValue}`;
       setQrData({ instanceId, qr: qrSrc });
       setMsg("Escaneie o QR Code no WhatsApp");
       pollStatus(instanceId);
     } else {
-      setMsg("Erro ao gerar QR");
+      const errData = await res.json().catch(() => ({}));
+      setMsg(`Erro: ${errData.error || res.statusText}`);
     }
   }
 
