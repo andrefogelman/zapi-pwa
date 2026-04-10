@@ -111,10 +111,82 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
     setSending(false);
   }, [chatJid, fetcher, sending]);
 
+  const sendFile = useCallback(async (file: File, caption?: string) => {
+    if (!chatJid || sending) return;
+    setSending(true);
+
+    // Detect type from mime
+    const mime = file.type || "application/octet-stream";
+    let msgType = "document";
+    if (mime.startsWith("image/")) msgType = "image";
+    else if (mime.startsWith("video/")) msgType = "video";
+    else if (mime.startsWith("audio/")) msgType = "audio";
+
+    // Optimistic message
+    const localId = `local-${Date.now()}`;
+    setMessages((prev) => [...prev, {
+      id: localId,
+      chatJid,
+      chatName: null,
+      senderJid: null,
+      senderName: null,
+      timestamp: Date.now() / 1000,
+      fromMe: true,
+      text: caption || `[${file.name}]`,
+      type: msgType,
+      mediaCaption: caption || null,
+      mediaUrl: null,
+      filename: file.name,
+      mimeType: mime,
+      transcription: null,
+      transcriptionStatus: null,
+      contact: null,
+    }]);
+
+    try {
+      const dataBase64 = await fileToBase64(file);
+      const result = await fetcher("send-file", {
+        method: "POST",
+        body: JSON.stringify({
+          to: chatJid,
+          filename: file.name,
+          mimeType: mime,
+          caption: caption || undefined,
+          dataBase64,
+        }),
+      });
+      if (!result || result.error || result.ok === false) {
+        throw new Error(result?.error || "Send failed");
+      }
+    } catch (err) {
+      // Roll back the optimistic message on failure
+      setMessages((prev) => prev.filter((m) => m.id !== localId));
+      setSending(false);
+      throw err;
+    }
+
+    setReplyTarget(null);
+    setSending(false);
+  }, [chatJid, fetcher, sending]);
+
   return {
     messages, loading, loadingOlder, hasOlder, sending,
-    loadMessages, loadOlder, sendMessage,
+    loadMessages, loadOlder, sendMessage, sendFile,
     replyTarget, setReplyTarget,
     initialLoad,
   };
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip the "data:mime;base64," prefix
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error || new Error("File read failed"));
+    reader.readAsDataURL(file);
+  });
 }

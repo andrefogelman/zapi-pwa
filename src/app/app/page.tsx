@@ -17,7 +17,7 @@ export default function AppMain() {
   const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts } = useChats(sessionId);
   const {
     messages, loading: msgsLoading, loadingOlder, hasOlder, sending,
-    loadMessages, loadOlder, sendMessage,
+    loadMessages, loadOlder, sendMessage, sendFile,
     replyTarget, setReplyTarget, initialLoad,
   } = useMessages(sessionId, selectedChat?.jid || null);
 
@@ -72,6 +72,7 @@ export default function AppMain() {
             replyTarget={replyTarget}
             onLoadOlder={loadOlder}
             onSend={sendMessage}
+            onSendFile={sendFile}
             onReply={setReplyTarget}
             onCancelReply={() => setReplyTarget(null)}
             onBack={() => setSelectedChat(null)}

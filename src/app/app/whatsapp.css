@@ -953,6 +953,93 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* ===== Attach Menu ===== */
+
+.wa-attach-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.wa-attach-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #8696a0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.wa-attach-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e9edef;
+}
+
+.wa-attach-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wa-attach-menu {
+  position: absolute;
+  bottom: 50px;
+  left: 0;
+  background: #233138;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: 8px;
+  min-width: 200px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wa-attach-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: #e9edef;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 8px;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.wa-attach-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.wa-attach-item.disabled,
+.wa-attach-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.wa-attach-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.wa-attach-doc { background: rgba(124, 101, 193, 0.2); }
+.wa-attach-photo { background: rgba(0, 168, 132, 0.2); }
+.wa-attach-contact { background: rgba(224, 109, 64, 0.2); }
+.wa-attach-poll { background: rgba(227, 177, 42, 0.2); }
+
 /* ===== Profile Photo in Avatar ===== */
 
 .wa-avatar img {

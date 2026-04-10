@@ -16,6 +16,7 @@ interface Props {
   replyTarget: ReplyTarget | null;
   onLoadOlder: () => void;
   onSend: (text: string) => void;
+  onSendFile: (file: File, caption?: string) => Promise<void>;
   onReply: (target: ReplyTarget) => void;
   onCancelReply: () => void;
   onBack: () => void;
@@ -24,7 +25,7 @@ interface Props {
 
 export function ChatPanel({
   chat, messages, loading, loadingOlder, hasOlder, sending,
-  replyTarget, onLoadOlder, onSend, onReply, onCancelReply, onBack, initialLoad,
+  replyTarget, onLoadOlder, onSend, onSendFile, onReply, onCancelReply, onBack, initialLoad,
 }: Props) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -108,6 +109,7 @@ export function ChatPanel({
         value={input}
         onChange={setInput}
         onSend={handleSend}
+        onSendFile={onSendFile}
         sending={sending}
         replyTarget={replyTarget}
         onCancelReply={onCancelReply}
