@@ -1,36 +1,32 @@
-import { redis } from './redis'
+import { redis } from "./redis";
 
 export interface TranscriptionJob {
-  instanceId: string
-  messageId: string
-  audioUrl: string
-  userId: string
-  timestamp: number
+  instanceId: string;
+  messageId: string;
+  audioUrl: string;
+  userId: string;
+  timestamp: number;
 }
 
 export class TranscriptionQueue {
-  private static readonly QUEUE_KEY = 'transcription_queue'
+  private static readonly QUEUE_KEY = "transcription_queue";
 
-  /**
-   * Enqueues a transcription job.
-   */
   static async enqueue(job: TranscriptionJob): Promise<<voidvoid> {
-    await redis.lpush(this.QUEUE_KEY, job)
+    await redis.lpush(this.QUEUE_KEY, JSON.stringify(job));
   }
 
-  /**
-   * Dequeues the next transcription job.
-   * Returns null if the queue is empty.
-   */
   static async dequeue(): Promise<<TranscriptionTranscriptionJob | null> {
-    const job = await redis.rpop(this.QUEUE_KEY)
-    return (job as TranscriptionJob) || null
+    const job = await redis.rpop(this.QUEUE_KEY);
+    if (!job) return null;
+    try {
+      return JSON.parse(job) as TranscriptionJob;
+    } catch (e) {
+      console.error("Failed to parse job from queue:", e);
+      return null;
+    }
   }
 
-  /**
-   * Returns the current number of jobs in the queue.
-   */
   static async getLength(): Promise<<numbernumber> {
-    return await redis.llen(this.QUEUE_KEY)
+    return await redis.llen(this.QUEUE_KEY);
   }
 }
