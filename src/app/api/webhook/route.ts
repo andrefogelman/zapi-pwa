@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getSupabaseServer } from "@/lib/supabase-server";
 import { TranscriptionQueue } from "@/lib/queue";
 

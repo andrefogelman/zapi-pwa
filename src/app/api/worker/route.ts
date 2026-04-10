@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { TranscriptionQueue } from "@/lib/queue";
 import { transcribeAudio, summarizeText } from "@/lib/openai";
 import { getSupabaseServer } from "@/lib/supabase-server";

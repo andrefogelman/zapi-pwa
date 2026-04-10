@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getSupabaseServer, getUserFromToken } from "@/lib/supabase-server";
 
 export async function POST(request: Request) {

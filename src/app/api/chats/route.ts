@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getSupabaseServer, getUserFromToken } from "@/lib/supabase-server";
 import { getZapiClient } from "@/lib/zapi";
 
