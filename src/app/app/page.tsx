@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/lib/use-auth";
 
 interface Instance {
@@ -49,7 +49,11 @@ export default function AppMain() {
   const [sending, setSending] = useState(false);
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlderMsgs, setHasOlderMsgs] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const initialLoadRef = useRef(true);
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${session?.access_token}`,
@@ -83,10 +87,47 @@ export default function AppMain() {
     }
   }, [search, chats]);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom only on initial load or new sent messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (initialLoadRef.current && messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+      initialLoadRef.current = false;
+    }
   }, [messages]);
+
+  // Scroll pagination — load older messages when scrolling to top
+  function handleMessagesScroll() {
+    const el = messagesContainerRef.current;
+    if (!el || loadingOlder || !hasOlderMsgs || messages.length === 0) return;
+    if (el.scrollTop < 100) {
+      loadOlderMessages();
+    }
+  }
+
+  async function loadOlderMessages() {
+    if (!instance?.waclaw_session_id || !selectedChat || loadingOlder) return;
+    setLoadingOlder(true);
+    const oldestTs = messages[0]?.timestamp;
+    const res = await fetch(
+      `/api/waclaw/sessions/${instance.waclaw_session_id}/messages/${encodeURIComponent(selectedChat.jid)}?limit=50&before=${oldestTs}`,
+      { headers }
+    );
+    if (res.ok) {
+      const older: Message[] = await res.json();
+      if (older.length === 0) {
+        setHasOlderMsgs(false);
+      } else {
+        const el = messagesContainerRef.current;
+        const prevHeight = el?.scrollHeight || 0;
+        setMessages(prev => [...older, ...prev]);
+        // Maintain scroll position after prepending
+        requestAnimationFrame(() => {
+          if (el) el.scrollTop = el.scrollHeight - prevHeight;
+        });
+      }
+    }
+    setLoadingOlder(false);
+  }
 
   async function loadChats() {
     setLoadingChats(true);
@@ -128,6 +169,8 @@ export default function AppMain() {
     setSelectedChat(chat);
     setLoadingMsgs(true);
     setMessages([]);
+    setHasOlderMsgs(true);
+    initialLoadRef.current = true;
 
     if (instance?.provider === "waclaw" && instance.waclaw_session_id) {
       const res = await fetch(
@@ -170,6 +213,7 @@ export default function AppMain() {
 
     setMsgInput("");
     setSending(false);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   }
 
   function formatChatTime(ts: number) {
@@ -220,15 +264,6 @@ export default function AppMain() {
 
   function getInitial(name: string) {
     return name.charAt(0).toUpperCase();
-  }
-
-  function getMsgTypeIcon(type: string) {
-    if (type === "audio" || type === "ptt") return "🎵";
-    if (type === "image") return "📷";
-    if (type === "video") return "🎥";
-    if (type === "document") return "📄";
-    if (type === "sticker") return "🏷️";
-    return "";
   }
 
   const chatOpen = !!selectedChat;
@@ -354,7 +389,13 @@ export default function AppMain() {
             </div>
 
             {/* Messages */}
-            <div className="wa-messages">
+            <div className="wa-messages" ref={messagesContainerRef} onScroll={handleMessagesScroll}>
+              {loadingOlder && (
+                <div style={{ textAlign: "center", padding: "0.5rem", color: "var(--wa-text-light)", fontSize: 12 }}>
+                  Carregando mensagens anteriores...
+                </div>
+              )}
+
               {loadingMsgs && (
                 <div style={{ textAlign: "center", padding: "2rem", color: "var(--wa-text-light)" }}>
                   Carregando mensagens...
