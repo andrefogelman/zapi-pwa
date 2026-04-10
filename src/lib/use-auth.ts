@@ -30,7 +30,8 @@ export function useAuth() {
     supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        // Route lives at /callback (route group `(auth)` doesn't add a URL segment)
+        redirectTo: `${window.location.origin}/callback`,
         // Request the People API contacts scope so we can read the user's
         // Google Contacts client-side via session.provider_token.
         scopes: "https://www.googleapis.com/auth/contacts.readonly",
