@@ -1,8 +1,12 @@
+"use client";
+
+import Link from "next/link";
 import { ChatItem } from "./ChatItem";
 import { InstanceTabs } from "./InstanceTabs";
 import type { Chat } from "../hooks/useChats";
 import type { Instance } from "../hooks/useInstances";
 import type { ChatTab } from "../lib/formatters";
+import { useUserSettings } from "../hooks/useUserSettings";
 
 interface Props {
   instances: Instance[];
@@ -48,6 +52,7 @@ export function Sidebar({
   userEmail,
   onSignOut,
 }: Props) {
+  const { settings } = useUserSettings();
   return (
     <div className="wa-sidebar">
       <div className="wa-sidebar-header">
@@ -109,6 +114,24 @@ export function Sidebar({
           <ChatItem key={chat.jid} chat={chat} selected={chat.jid === selectedJid} onClick={() => onSelectChat(chat)} />
         ))}
       </div>
+
+      {settings?.role === "super_admin" && (
+        <Link
+          href="/admin"
+          title="Admin da plataforma"
+          style={{
+            display: "block",
+            padding: "0.5rem 0.75rem",
+            marginTop: "auto",
+            color: "#1976d2",
+            textDecoration: "none",
+            fontSize: "0.9rem",
+            borderTop: "1px solid #2a3942",
+          }}
+        >
+          ⚙️ Admin
+        </Link>
+      )}
     </div>
   );
 }
