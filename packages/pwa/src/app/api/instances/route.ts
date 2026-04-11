@@ -33,18 +33,31 @@ export async function POST(request: Request) {
 
   const supabase = getSupabaseServer();
 
-  // Create waclaw session on worker5
+  // Create waclaw session on worker5. Wrap the whole call in try/catch so
+  // network-level errors (DNS, ECONNREFUSED, timeout) surface as 502 rather
+  // than a generic 500.
   const waclawUrl = process.env.WACLAW_URL ?? "http://100.66.83.22:3100";
   const waclawKey = process.env.WACLAW_API_KEY ?? "waclaw-dev-key";
-  const sessionRes = await fetch(`${waclawUrl}/sessions`, {
-    method: "POST",
-    headers: { "X-API-Key": waclawKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ name: name ?? "Minha Instância" }),
-  });
-  if (!sessionRes.ok) {
-    return Response.json({ error: "waclaw session creation failed" }, { status: 502 });
+  let sessionId: string;
+  try {
+    const sessionRes = await fetch(`${waclawUrl}/sessions`, {
+      method: "POST",
+      headers: { "X-API-Key": waclawKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name ?? "Minha Instância" }),
+    });
+    if (!sessionRes.ok) {
+      return Response.json(
+        { error: `waclaw session creation failed: ${sessionRes.status}` },
+        { status: 502 }
+      );
+    }
+    ({ id: sessionId } = await sessionRes.json());
+  } catch (err) {
+    return Response.json(
+      { error: `waclaw unreachable: ${String(err)}` },
+      { status: 502 }
+    );
   }
-  const { id: sessionId } = await sessionRes.json();
 
   const { data, error } = await supabase
     .from("instances")
