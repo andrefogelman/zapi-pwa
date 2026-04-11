@@ -1219,6 +1219,13 @@
   color: #8696a0;
 }
 
+.wa-search-count {
+  font-size: 11px;
+  color: #8696a0;
+  margin-bottom: 8px;
+  padding-left: 4px;
+}
+
 .wa-contact-list {
   display: flex;
   flex-direction: column;

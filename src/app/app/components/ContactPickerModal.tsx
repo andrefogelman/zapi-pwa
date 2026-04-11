@@ -82,52 +82,79 @@ export function ContactPickerModal({ open, onClose, onSend }: Props) {
         }
       }
 
-      const res = await fetch(
-        "https://people.googleapis.com/v1/people/me/connections?personFields=names,phoneNumbers,emailAddresses,organizations&pageSize=1000",
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (res.status === 401) {
-        setError("Token do Google expirou. Reconecte para acessar contatos.");
-        setGoogleContacts(null);
-        return;
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      const all: PickedContact[] = [];
+
+      // 1) Paginate through all "My Contacts" (people/me/connections)
+      let pageToken1: string | null = null;
+      while (true) {
+        const url1: string =
+          "https://people.googleapis.com/v1/people/me/connections" +
+          "?personFields=names,phoneNumbers,emailAddresses,organizations" +
+          "&pageSize=1000" +
+          (pageToken1 ? `&pageToken=${encodeURIComponent(pageToken1)}` : "");
+        const res1: Response = await fetch(url1, { headers });
+        if (res1.status === 401) {
+          setError("Token do Google expirou. Reconecte para acessar contatos.");
+          setGoogleContacts(null);
+          return;
+        }
+        if (res1.status === 403) {
+          let detail = "";
+          try {
+            const errData = await res1.json();
+            detail = errData?.error?.message || "";
+          } catch {}
+          setError(
+            `HTTP 403${detail ? `: ${detail}` : ""}. ` +
+            "Verifique o scope 'contacts.readonly' no OAuth consent screen, ou clique em 'Reconectar com Google'."
+          );
+          setGoogleContacts(null);
+          return;
+        }
+        if (!res1.ok) {
+          setError(`Falha ao carregar contatos (HTTP ${res1.status})`);
+          return;
+        }
+        const data1: { connections?: Array<Record<string, unknown>>; nextPageToken?: string } = await res1.json();
+        for (const p of data1.connections || []) {
+          const parsed = parseConnection(p);
+          if (parsed) all.push(parsed);
+        }
+        if (!data1.nextPageToken) break;
+        pageToken1 = data1.nextPageToken;
       }
-      if (res.status === 403) {
-        // Try to extract Google's error message
-        let detail = "";
-        try {
-          const errData = await res.json();
-          detail = errData?.error?.message || "";
-        } catch {}
-        setError(
-          `HTTP 403${detail ? `: ${detail}` : ""}. ` +
-          "Verifique se o scope 'contacts.readonly' está habilitado no OAuth consent screen do Google Cloud, " +
-          "ou clique em 'Reconectar com Google' pra pedir permissão."
-        );
-        setGoogleContacts(null);
-        return;
+
+      // 2) Paginate through "Other contacts" (people you've interacted with)
+      let pageToken2: string | null = null;
+      while (true) {
+        const url2: string =
+          "https://people.googleapis.com/v1/otherContacts" +
+          "?readMask=names,phoneNumbers,emailAddresses" +
+          "&pageSize=1000" +
+          (pageToken2 ? `&pageToken=${encodeURIComponent(pageToken2)}` : "");
+        const res2: Response = await fetch(url2, { headers });
+        if (!res2.ok) break; // otherContacts is optional; don't fail the whole flow
+        const data2: { otherContacts?: Array<Record<string, unknown>>; nextPageToken?: string } = await res2.json();
+        for (const p of data2.otherContacts || []) {
+          const parsed = parseConnection(p);
+          if (parsed) all.push(parsed);
+        }
+        if (!data2.nextPageToken) break;
+        pageToken2 = data2.nextPageToken;
       }
-      if (!res.ok) {
-        setError(`Falha ao carregar contatos (HTTP ${res.status})`);
-        return;
+
+      // Dedupe by first phone number (or name if no phone) and sort
+      const seen = new Set<string>();
+      const deduped: PickedContact[] = [];
+      for (const c of all) {
+        const key = (c.phones[0] || c.name).replace(/\D/g, "") || c.name;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(c);
       }
-      const data = await res.json();
-      const connections: Array<Record<string, unknown>> = data.connections || [];
-      const parsed: PickedContact[] = connections
-        .map((p) => {
-          const names = p.names as Array<{ displayName?: string }> | undefined;
-          const phones = p.phoneNumbers as Array<{ value?: string }> | undefined;
-          const emails = p.emailAddresses as Array<{ value?: string }> | undefined;
-          const orgs = p.organizations as Array<{ name?: string }> | undefined;
-          return {
-            name: names?.[0]?.displayName || "",
-            phones: (phones || []).map((x) => x.value || "").filter(Boolean),
-            emails: (emails || []).map((x) => x.value || "").filter(Boolean),
-            organization: orgs?.[0]?.name,
-          };
-        })
-        .filter((c) => c.name && c.phones.length > 0)
-        .sort((a, b) => a.name.localeCompare(b.name));
-      setGoogleContacts(parsed);
+      deduped.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+      setGoogleContacts(deduped);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -180,14 +207,17 @@ export function ContactPickerModal({ open, onClose, onSend }: Props) {
 
   const filteredContacts = useMemo(() => {
     if (!googleContacts) return [];
-    const q = search.trim().toLowerCase();
-    if (!q) return googleContacts;
-    return googleContacts.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.phones.some((p) => p.includes(q)) ||
-        c.emails.some((e) => e.toLowerCase().includes(q))
-    );
+    const raw = search.trim();
+    if (!raw) return googleContacts;
+    const q = normalizeForSearch(raw);
+    const qDigits = raw.replace(/\D/g, "");
+    return googleContacts.filter((c) => {
+      if (normalizeForSearch(c.name).includes(q)) return true;
+      if (c.organization && normalizeForSearch(c.organization).includes(q)) return true;
+      if (qDigits && c.phones.some((p) => p.replace(/\D/g, "").includes(qDigits))) return true;
+      if (c.emails.some((e) => normalizeForSearch(e).includes(q))) return true;
+      return false;
+    });
   }, [googleContacts, search]);
 
   if (!open) return null;
@@ -242,10 +272,15 @@ export function ContactPickerModal({ open, onClose, onSend }: Props) {
                 <>
                   <input
                     className="wa-modal-search"
-                    placeholder="Buscar contato..."
+                    placeholder={`Buscar em ${googleContacts?.length || 0} contatos...`}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
+                  {search && (
+                    <div className="wa-search-count">
+                      {filteredContacts.length} resultado{filteredContacts.length === 1 ? "" : "s"}
+                    </div>
+                  )}
                   <div className="wa-contact-list">
                     {filteredContacts.map((c, i) => (
                       <button
@@ -323,6 +358,36 @@ export function ContactPickerModal({ open, onClose, onSend }: Props) {
       </div>
     </div>
   );
+}
+
+// Normalize for accent- and case-insensitive search
+function normalizeForSearch(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function parseConnection(p: Record<string, unknown>): PickedContact | null {
+  const names = p.names as Array<{ displayName?: string; unstructuredName?: string }> | undefined;
+  const phones = p.phoneNumbers as Array<{ value?: string; canonicalForm?: string }> | undefined;
+  const emails = p.emailAddresses as Array<{ value?: string }> | undefined;
+  const orgs = p.organizations as Array<{ name?: string }> | undefined;
+
+  const name =
+    names?.[0]?.displayName ||
+    names?.[0]?.unstructuredName ||
+    "";
+  const phoneList = (phones || [])
+    .map((x) => x.canonicalForm || x.value || "")
+    .filter(Boolean);
+
+  if (!name && phoneList.length === 0) return null;
+  if (phoneList.length === 0) return null; // require phone for sending contact
+
+  return {
+    name: name || phoneList[0],
+    phones: phoneList,
+    emails: (emails || []).map((x) => x.value || "").filter(Boolean),
+    organization: orgs?.[0]?.name,
+  };
 }
 
 function buildVCard(c: PickedContact): string {
