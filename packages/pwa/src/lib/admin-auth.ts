@@ -31,7 +31,8 @@ export async function requireSuperAdmin(request: Request): Promise<{
   supabaseUser: SupabaseClient;
   supabaseAdmin: SupabaseClient;
 }> {
-  const token = request.headers.get("Authorization")?.replace("Bearer ", "");
+  // Accept "Bearer" or "bearer" (some clients lowercase the scheme).
+  const token = request.headers.get("Authorization")?.replace(/^[Bb]earer\s+/, "");
   if (!token) throw new HttpError(401, "unauthorized");
 
   const user = await getUserFromToken(token);

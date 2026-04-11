@@ -45,6 +45,24 @@ describe("filterMessage — DMs", () => {
     });
     expect(r).toEqual({ action: "skip", reason: "self" });
   });
+
+  test("DM where chat_jid matches my_lids → skip", () => {
+    const r = filterMessage({
+      event: { ...baseEvent, chat_jid: "249520503971936@lid" },
+      instance: { ...baseInstance, my_lids: ["249520503971936@lid"] },
+      group: null,
+    });
+    expect(r).toEqual({ action: "skip", reason: "self" });
+  });
+
+  test("group chat_jid never matches my_lids (harmless even with stray LID entries)", () => {
+    const r = filterMessage({
+      event: { ...baseEvent, is_group: true, chat_jid: "120363@g.us" },
+      instance: { ...baseInstance, my_lids: ["unrelated@lid"] },
+      group: { transcribe_all: true, send_reply: true },
+    });
+    expect(r).toEqual({ action: "process", sendReply: true });
+  });
 });
 
 describe("filterMessage — groups", () => {

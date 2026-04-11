@@ -34,7 +34,13 @@ export function filterMessage(input: {
 }): FilterDecision {
   const { event, instance, group } = input;
 
-  // Echo prevention
+  // Echo prevention. Three cases:
+  //   - sender matches this instance's connected phone
+  //   - sender's phone is in the user's list of own numbers
+  //   - chat_jid matches a known own LID (covers LID-based DMs to ourselves,
+  //     where waclaw returns the LID string as chat_jid — e.g. "249520...@lid".
+  //     For group chats chat_jid ends with "@g.us", so this never matches a
+  //     legitimate group even if my_lids contains unrelated LID strings.)
   if (
     event.sender_phone === instance.connected_phone ||
     instance.my_phones.includes(event.sender_phone) ||
