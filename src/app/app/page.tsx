@@ -1,19 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/use-auth";
 import { Sidebar } from "./components/Sidebar";
 import { ChatPanel } from "./components/ChatPanel";
 import { EmptyState } from "./components/EmptyState";
+import { SettingsModal } from "./components/SettingsModal";
 import { useChats, type Chat } from "./hooks/useChats";
 import { useMessages } from "./hooks/useMessages";
+import { useInstances } from "./hooks/useInstances";
 
 export default function AppMain() {
   const { session, signOut } = useAuth();
-  const [instance, setInstance] = useState<{ id: string; waclaw_session_id: string | null } | null>(null);
+  const { instances, loading: instLoading, reload, createWaclaw, remove, rename } = useInstances();
+  const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const sessionId = instance?.waclaw_session_id || null;
+  // Auto-select the first waclaw-enabled instance once the list loads
+  useEffect(() => {
+    if (activeInstanceId) return;
+    const firstWithSession = instances.find((i) => i.waclaw_session_id);
+    if (firstWithSession) setActiveInstanceId(firstWithSession.id);
+  }, [instances, activeInstanceId]);
+
+  const activeInstance = useMemo(
+    () => instances.find((i) => i.id === activeInstanceId) || null,
+    [instances, activeInstanceId]
+  );
+  const sessionId = activeInstance?.waclaw_session_id || null;
+
   const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts } = useChats(sessionId);
   const {
     messages, loading: msgsLoading, loadingOlder, hasOlder, sending,
@@ -21,17 +37,11 @@ export default function AppMain() {
     replyTarget, setReplyTarget, initialLoad,
   } = useMessages(sessionId, selectedChat?.jid || null);
 
-  // Load instance on mount
+  // Reset selection when switching instances
   useEffect(() => {
-    if (!session) return;
-    fetch("/api/instances", {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    }).then((r) => r.json()).then((data: Record<string, unknown>[]) => {
-      const waclaw = data.find((i) => i.provider === "waclaw" && i.waclaw_session_id);
-      const first = data[0];
-      setInstance((waclaw || first || null) as typeof instance);
-    });
-  }, [session]);
+    setSelectedChat(null);
+    setReplyTarget(null);
+  }, [activeInstanceId]);
 
   // Load messages when chat changes
   useEffect(() => {
@@ -46,6 +56,11 @@ export default function AppMain() {
   return (
     <div className={`wa-app ${selectedChat ? "chat-open" : ""}`}>
       <Sidebar
+        instances={instances}
+        instancesLoading={instLoading}
+        activeInstanceId={activeInstanceId}
+        onSelectInstance={setActiveInstanceId}
+        onOpenSettings={() => setSettingsOpen(true)}
         chats={chats}
         loading={chatsLoading}
         search={search}
@@ -80,6 +95,16 @@ export default function AppMain() {
           />
         )}
       </div>
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        instances={instances}
+        onCreate={createWaclaw}
+        onDelete={remove}
+        onRename={rename}
+        onReload={reload}
+      />
     </div>
   );
 }

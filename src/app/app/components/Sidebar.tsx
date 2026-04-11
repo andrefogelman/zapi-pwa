@@ -1,8 +1,15 @@
 import { ChatItem } from "./ChatItem";
+import { InstanceTabs } from "./InstanceTabs";
 import type { Chat } from "../hooks/useChats";
+import type { Instance } from "../hooks/useInstances";
 import type { ChatTab } from "../lib/formatters";
 
 interface Props {
+  instances: Instance[];
+  instancesLoading: boolean;
+  activeInstanceId: string | null;
+  onSelectInstance: (id: string) => void;
+  onOpenSettings: () => void;
   chats: Chat[];
   loading: boolean;
   search: string;
@@ -24,9 +31,22 @@ const TABS: { key: ChatTab; label: string }[] = [
 ];
 
 export function Sidebar({
-  chats, loading, search, onSearchChange,
-  activeTab, onTabChange, tabCounts,
-  selectedJid, onSelectChat, userEmail, onSignOut,
+  instances,
+  instancesLoading,
+  activeInstanceId,
+  onSelectInstance,
+  onOpenSettings,
+  chats,
+  loading,
+  search,
+  onSearchChange,
+  activeTab,
+  onTabChange,
+  tabCounts,
+  selectedJid,
+  onSelectChat,
+  userEmail,
+  onSignOut,
 }: Props) {
   return (
     <div className="wa-sidebar">
@@ -40,6 +60,13 @@ export function Sidebar({
           </svg>
         </button>
       </div>
+
+      <InstanceTabs
+        instances={instances}
+        activeId={activeInstanceId}
+        onSelect={onSelectInstance}
+        onOpenSettings={onOpenSettings}
+      />
 
       <div className="wa-search-bar">
         <div className="wa-search-input-wrap">
@@ -60,8 +87,24 @@ export function Sidebar({
       </div>
 
       <div className="wa-chatlist">
-        {loading && <div className="wa-loading">Carregando...</div>}
-        {!loading && chats.length === 0 && <div className="wa-loading">Nenhuma conversa encontrada</div>}
+        {instancesLoading && <div className="wa-loading">Carregando instâncias...</div>}
+        {!instancesLoading && instances.length === 0 && (
+          <div className="wa-loading">
+            Nenhuma instância.
+            <br />
+            <button
+              className="wa-modal-primary"
+              style={{ marginTop: 12 }}
+              onClick={onOpenSettings}
+            >
+              + Adicionar instância
+            </button>
+          </div>
+        )}
+        {!instancesLoading && loading && <div className="wa-loading">Carregando conversas...</div>}
+        {!loading && !instancesLoading && chats.length === 0 && instances.length > 0 && (
+          <div className="wa-loading">Nenhuma conversa encontrada</div>
+        )}
         {chats.map((chat) => (
           <ChatItem key={chat.jid} chat={chat} selected={chat.jid === selectedJid} onClick={() => onSelectChat(chat)} />
         ))}
