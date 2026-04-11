@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/use-auth";
 import type { Instance } from "../hooks/useInstances";
+import { useUserSettings } from "../hooks/useUserSettings";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   instances: Instance[];
+  activeInstanceId: string | null;
   onCreate: (name: string) => Promise<Instance | null>;
   onDelete: (id: string) => Promise<boolean>;
   onRename: (id: string, name: string) => Promise<boolean>;
@@ -15,11 +17,26 @@ interface Props {
 }
 
 type View = "list" | "new" | "qr";
+type Tab = "instancias" | "perfil" | "grupos";
+
+interface GroupRow {
+  group_id: string;
+  subject: string;
+  transcribe_all: boolean;
+  send_reply: boolean;
+  monitor_daily: boolean;
+}
+
+interface FetchedGroup {
+  group_id: string;
+  subject: string;
+}
 
 export function SettingsModal({
-  open, onClose, instances, onCreate, onDelete, onRename, onReload,
+  open, onClose, instances, activeInstanceId, onCreate, onDelete, onRename, onReload,
 }: Props) {
   const { session } = useAuth();
+  const [tab, setTab] = useState<Tab>("instancias");
   const [view, setView] = useState<View>("list");
   const [newName, setNewName] = useState("");
   const [pendingInstance, setPendingInstance] = useState<Instance | null>(null);
@@ -27,6 +44,18 @@ export function SettingsModal({
   const [authState, setAuthState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Perfil tab state
+  const { settings, update: updateSettings } = useUserSettings();
+  const [localName, setLocalName] = useState("");
+  const [localFooter, setLocalFooter] = useState("");
+  const [savingPerfil, setSavingPerfil] = useState(false);
+  const [perfilMsg, setPerfilMsg] = useState("");
+
+  // Grupos tab state
+  const [groups, setGroups] = useState<GroupRow[]>([]);
+  const [fetchedGroups, setFetchedGroups] = useState<FetchedGroup[]>([]);
+  const [fetchingGroups, setFetchingGroups] = useState(false);
 
   const authHeaders = useCallback((): Record<string, string> => {
     const token = session?.access_token;
@@ -37,6 +66,7 @@ export function SettingsModal({
 
   useEffect(() => {
     if (!open) {
+      setTab("instancias");
       setView("list");
       setNewName("");
       setPendingInstance(null);
@@ -46,6 +76,107 @@ export function SettingsModal({
       setBusy(false);
     }
   }, [open]);
+
+  // Sync perfil fields from settings
+  useEffect(() => {
+    if (settings) {
+      setLocalName(settings.display_name ?? "");
+      setLocalFooter(settings.transcription_footer ?? "");
+    }
+  }, [settings]);
+
+  const loadGroups = useCallback(async () => {
+    if (!activeInstanceId || !session?.access_token) return;
+    try {
+      const res = await fetch(`/api/instances/${activeInstanceId}/groups`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setGroups(data.groups ?? []);
+    } catch {}
+  }, [activeInstanceId, session?.access_token, authHeaders]);
+
+  // Load groups when opening the Grupos tab or switching instance
+  useEffect(() => {
+    if (open && tab === "grupos") {
+      setFetchedGroups([]);
+      loadGroups();
+    }
+  }, [open, tab, activeInstanceId, loadGroups]);
+
+  async function savePerfil() {
+    setSavingPerfil(true);
+    try {
+      await updateSettings({
+        display_name: localName,
+        transcription_footer: localFooter,
+      });
+      setPerfilMsg("Salvo!");
+    } catch (err) {
+      setPerfilMsg(`Erro: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSavingPerfil(false);
+      setTimeout(() => setPerfilMsg(""), 3000);
+    }
+  }
+
+  async function fetchFromWhatsApp() {
+    if (!activeInstanceId || !session?.access_token) return;
+    setFetchingGroups(true);
+    try {
+      const res = await fetch(`/api/instances/${activeInstanceId}/groups/fetch`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setFetchedGroups(data.groups ?? []);
+    } finally {
+      setFetchingGroups(false);
+    }
+  }
+
+  async function importGroup(g: FetchedGroup) {
+    if (!activeInstanceId || !session?.access_token) return;
+    await fetch(`/api/instances/${activeInstanceId}/groups`, {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ group_id: g.group_id, subject: g.subject }),
+    });
+    loadGroups();
+  }
+
+  async function toggleGroupFlag(
+    groupId: string,
+    field: "transcribe_all" | "send_reply" | "monitor_daily",
+    value: boolean,
+  ) {
+    if (!activeInstanceId || !session?.access_token) return;
+    await fetch(
+      `/api/instances/${activeInstanceId}/groups/${encodeURIComponent(groupId)}`,
+      {
+        method: "PATCH",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+      },
+    );
+    setGroups((prev) =>
+      prev.map((g) => (g.group_id === groupId ? { ...g, [field]: value } : g)),
+    );
+  }
+
+  async function removeGroup(groupId: string) {
+    if (!activeInstanceId || !session?.access_token) return;
+    if (!confirm("Remover este grupo?")) return;
+    await fetch(
+      `/api/instances/${activeInstanceId}/groups/${encodeURIComponent(groupId)}`,
+      {
+        method: "DELETE",
+        headers: authHeaders(),
+      },
+    );
+    loadGroups();
+  }
 
   // Poll QR + status while showing the QR view
   useEffect(() => {
@@ -145,20 +276,58 @@ export function SettingsModal({
 
   if (!open) return null;
 
+  const tabBtnStyle = (active: boolean): React.CSSProperties => ({
+    padding: "0.5rem 1rem",
+    background: active ? "#e0f2f1" : "transparent",
+    border: "none",
+    borderBottom: active ? "2px solid #00796b" : "2px solid transparent",
+    cursor: "pointer",
+    fontWeight: active ? 600 : 400,
+  });
+
   return (
     <div className="wa-modal-overlay" onClick={onClose}>
       <div className="wa-modal wa-modal-lg" onClick={(e) => e.stopPropagation()}>
         <div className="wa-modal-header">
           <div className="wa-modal-title">
-            {view === "list" && "Instâncias"}
-            {view === "new" && "Nova instância"}
-            {view === "qr" && "Escaneie o código"}
+            {tab === "instancias" && view === "list" && "Instâncias"}
+            {tab === "instancias" && view === "new" && "Nova instância"}
+            {tab === "instancias" && view === "qr" && "Escaneie o código"}
+            {tab === "perfil" && "Perfil"}
+            {tab === "grupos" && "Grupos"}
           </div>
           <button className="wa-modal-close" onClick={onClose}>✕</button>
         </div>
 
+        <div
+          style={{
+            display: "flex",
+            borderBottom: "1px solid #e0e0e0",
+            padding: "0 1rem",
+          }}
+        >
+          <button
+            onClick={() => setTab("instancias")}
+            style={tabBtnStyle(tab === "instancias")}
+          >
+            Instâncias
+          </button>
+          <button
+            onClick={() => setTab("perfil")}
+            style={tabBtnStyle(tab === "perfil")}
+          >
+            Perfil
+          </button>
+          <button
+            onClick={() => setTab("grupos")}
+            style={tabBtnStyle(tab === "grupos")}
+          >
+            Grupos
+          </button>
+        </div>
+
         <div className="wa-modal-body">
-          {view === "list" && (
+          {tab === "instancias" && view === "list" && (
             <>
               {instances.length === 0 && (
                 <div className="wa-contact-empty">
@@ -210,7 +379,7 @@ export function SettingsModal({
             </>
           )}
 
-          {view === "new" && (
+          {tab === "instancias" && view === "new" && (
             <>
               <label className="wa-modal-label">Nome (ex: Pessoal, Trabalho, Vendas)</label>
               <input
@@ -225,7 +394,7 @@ export function SettingsModal({
             </>
           )}
 
-          {view === "qr" && (
+          {tab === "instancias" && view === "qr" && (
             <div className="wa-qr-wrap">
               {qrCode ? (
                 <>
@@ -250,9 +419,247 @@ export function SettingsModal({
               {error && <div className="wa-modal-error">{error}</div>}
             </div>
           )}
+
+          {tab === "perfil" && (
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.25rem",
+                  fontWeight: 500,
+                }}
+              >
+                Nome de exibição
+              </label>
+              <input
+                value={localName}
+                onChange={(e) => setLocalName(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  marginBottom: "1rem",
+                  border: "1px solid #ccc",
+                  borderRadius: 4,
+                }}
+              />
+
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.25rem",
+                  fontWeight: 500,
+                }}
+              >
+                Rodapé da transcrição
+              </label>
+              <input
+                value={localFooter}
+                onChange={(e) => setLocalFooter(e.target.value)}
+                placeholder="Transcrição por IA by Andre 😜"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  marginBottom: "1rem",
+                  border: "1px solid #ccc",
+                  borderRadius: 4,
+                }}
+              />
+
+              <div
+                style={{
+                  padding: "1rem",
+                  background: "#f5f5f5",
+                  borderRadius: 4,
+                  marginBottom: "1rem",
+                  fontSize: "0.9rem",
+                }}
+              >
+                <strong>Preview:</strong>
+                <div style={{ marginTop: "0.5rem", whiteSpace: "pre-wrap" }}>
+                  {`Olá, tudo bem? Esse é um exemplo de transcrição.\n\n${localFooter}`}
+                </div>
+              </div>
+
+              <button
+                onClick={savePerfil}
+                disabled={savingPerfil}
+                className="wa-modal-primary"
+                style={{ padding: "0.5rem 1rem" }}
+              >
+                {savingPerfil ? "Salvando..." : "Salvar perfil"}
+              </button>
+              {perfilMsg && (
+                <p
+                  style={{
+                    color: perfilMsg.startsWith("Erro") ? "red" : "green",
+                    marginTop: "0.5rem",
+                  }}
+                >
+                  {perfilMsg}
+                </p>
+              )}
+            </div>
+          )}
+
+          {tab === "grupos" && (
+            <div>
+              {!activeInstanceId ? (
+                <p>Selecione uma instância primeiro.</p>
+              ) : (
+                <>
+                  <button
+                    onClick={fetchFromWhatsApp}
+                    disabled={fetchingGroups}
+                    className="wa-modal-primary"
+                    style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
+                  >
+                    {fetchingGroups ? "Buscando..." : "Buscar grupos do WhatsApp"}
+                  </button>
+
+                  {fetchedGroups.length > 0 && (
+                    <div
+                      style={{
+                        border: "1px solid #ddd",
+                        padding: "0.5rem",
+                        marginBottom: "1rem",
+                        borderRadius: 4,
+                      }}
+                    >
+                      <h4 style={{ margin: "0 0 0.5rem 0" }}>
+                        Grupos encontrados (clique para importar)
+                      </h4>
+                      {fetchedGroups.map((g) => (
+                        <div
+                          key={g.group_id}
+                          style={{
+                            padding: "0.25rem",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <span>{g.subject}</span>
+                          <button
+                            onClick={() => importGroup(g)}
+                            style={{ fontSize: "0.8rem" }}
+                          >
+                            Importar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <h3 style={{ marginTop: 0 }}>Autorizados</h3>
+                  {groups.length === 0 ? (
+                    <p style={{ color: "#666" }}>Nenhum grupo autorizado.</p>
+                  ) : (
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      <thead>
+                        <tr style={{ borderBottom: "2px solid #333" }}>
+                          <th
+                            style={{ textAlign: "left", padding: "0.5rem" }}
+                          >
+                            Nome
+                          </th>
+                          <th
+                            style={{ textAlign: "center", padding: "0.5rem" }}
+                            title="Transcrever todos os áudios do grupo"
+                          >
+                            T
+                          </th>
+                          <th
+                            style={{ textAlign: "center", padding: "0.5rem" }}
+                            title="Enviar transcrição de volta no chat"
+                          >
+                            R
+                          </th>
+                          <th
+                            style={{ textAlign: "center", padding: "0.5rem" }}
+                            title="Incluir em relatório diário"
+                          >
+                            D
+                          </th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groups.map((g) => (
+                          <tr
+                            key={g.group_id}
+                            style={{ borderBottom: "1px solid #eee" }}
+                          >
+                            <td style={{ padding: "0.5rem" }}>{g.subject}</td>
+                            <td style={{ textAlign: "center" }}>
+                              <input
+                                type="checkbox"
+                                checked={g.transcribe_all}
+                                onChange={(e) =>
+                                  toggleGroupFlag(
+                                    g.group_id,
+                                    "transcribe_all",
+                                    e.target.checked,
+                                  )
+                                }
+                              />
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <input
+                                type="checkbox"
+                                checked={g.send_reply}
+                                onChange={(e) =>
+                                  toggleGroupFlag(
+                                    g.group_id,
+                                    "send_reply",
+                                    e.target.checked,
+                                  )
+                                }
+                              />
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <input
+                                type="checkbox"
+                                checked={g.monitor_daily}
+                                onChange={(e) =>
+                                  toggleGroupFlag(
+                                    g.group_id,
+                                    "monitor_daily",
+                                    e.target.checked,
+                                  )
+                                }
+                              />
+                            </td>
+                            <td>
+                              <button
+                                onClick={() => removeGroup(g.group_id)}
+                                style={{
+                                  color: "red",
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Remover
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
-        {view === "new" && (
+        {tab === "instancias" && view === "new" && (
           <div className="wa-modal-footer">
             <button
               className="wa-modal-secondary"
@@ -271,7 +678,7 @@ export function SettingsModal({
           </div>
         )}
 
-        {view === "qr" && (
+        {tab === "instancias" && view === "qr" && (
           <div className="wa-modal-footer">
             <button
               className="wa-modal-secondary"

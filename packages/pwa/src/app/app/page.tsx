@@ -193,6 +193,7 @@ export default function AppMain() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         instances={instances}
+        activeInstanceId={activeInstanceId}
         onCreate={createWaclaw}
         onDelete={remove}
         onRename={rename}
