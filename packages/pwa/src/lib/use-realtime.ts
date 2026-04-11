@@ -18,13 +18,18 @@ export function useRealtime({ table, filter, event = "*", onRecord }: RealtimeOp
     const supabase = getSupabaseBrowser();
     const channelName = `realtime:${table}:${filter || "all"}`;
 
+    interface PgChangePayload {
+      new: Record<string, unknown>;
+      old: Record<string, unknown>;
+      eventType: string;
+    }
     const channel = supabase.channel(channelName).on(
-      "postgres_changes",
+      "postgres_changes" as never,
       { event, schema: "public", table, filter },
-      (payload) => {
+      (payload: PgChangePayload) => {
         onRecord({
-          new: payload.new as Record<string, unknown>,
-          old: payload.old as Record<string, unknown>,
+          new: payload.new,
+          old: payload.old,
           eventType: payload.eventType,
         });
       }
