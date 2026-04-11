@@ -1,0 +1,19 @@
+[Unit]
+Description=zapi-pwa transcribe daemon (waclaw → Next forwarder)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=openclaw
+WorkingDirectory=/home/openclaw/zapi-pwa/packages/daemon
+Environment="PATH=/home/openclaw/.local/share/fnm/node-versions/v24.14.0/installation/bin:/home/openclaw/.local/bin:/usr/local/bin:/usr/bin"
+EnvironmentFile=/home/openclaw/zapi-pwa/packages/daemon/.env
+ExecStart=/home/openclaw/.local/bin/bun run src/index.ts
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
