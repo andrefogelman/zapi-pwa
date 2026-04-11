@@ -7,6 +7,8 @@ import { ChatPanel } from "./components/ChatPanel";
 import { EmptyState } from "./components/EmptyState";
 import { SettingsModal } from "./components/SettingsModal";
 import { ForwardPickerModal } from "./components/ForwardPickerModal";
+import { SummaryModal } from "./components/SummaryModal";
+import { ScheduleMessageModal } from "./components/ScheduleMessageModal";
 import { useChats, type Chat } from "./hooks/useChats";
 import { useMessages, type Message } from "./hooks/useMessages";
 import { useInstances } from "./hooks/useInstances";
@@ -19,6 +21,8 @@ export default function AppMain() {
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [forwardTarget, setForwardTarget] = useState<Message | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   // Auto-select the first waclaw-enabled instance once the list loads
   useEffect(() => {
@@ -178,6 +182,8 @@ export default function AppMain() {
             onDelete={handleDelete}
             onCancelReply={() => setReplyTarget(null)}
             onBack={() => setSelectedChat(null)}
+            onOpenSummary={() => setSummaryOpen(true)}
+            onOpenSchedule={() => setScheduleOpen(true)}
             initialLoad={initialLoad}
           />
         )}
@@ -199,6 +205,22 @@ export default function AppMain() {
         message={forwardTarget}
         chats={chats}
         onSend={handleForwardSend}
+      />
+
+      <SummaryModal
+        open={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+        sessionId={sessionId}
+        chatJid={selectedChat?.jid || null}
+        chatName={selectedChat?.name || ""}
+      />
+
+      <ScheduleMessageModal
+        open={scheduleOpen}
+        onClose={() => setScheduleOpen(false)}
+        sessionId={sessionId}
+        chatJid={selectedChat?.jid || null}
+        chatName={selectedChat?.name || ""}
       />
     </div>
   );

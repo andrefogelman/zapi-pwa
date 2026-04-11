@@ -1753,6 +1753,186 @@
   vertical-align: middle;
 }
 
+/* ===== Chat Panel Header Actions ===== */
+
+.wa-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.wa-panel-action {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #aebac1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.wa-panel-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e9edef;
+}
+
+/* ===== Summary Modal ===== */
+
+.wa-period-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.wa-period-btn {
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e9edef;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.wa-period-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.wa-period-btn.active {
+  background: rgba(0, 168, 132, 0.2);
+  border-color: #00a884;
+  color: #00a884;
+}
+
+.wa-period-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wa-summary-info {
+  color: #8696a0;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+
+.wa-summary-meta {
+  color: #8696a0;
+  font-size: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.wa-summary-content {
+  color: #e9edef;
+  font-size: 14px;
+  line-height: 1.6;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.wa-summary-content h3,
+.wa-summary-content h4,
+.wa-summary-content h5 {
+  color: #00a884;
+  margin: 14px 0 6px;
+  font-weight: 600;
+}
+
+.wa-summary-content h3 { font-size: 16px; }
+.wa-summary-content h4 { font-size: 14px; }
+.wa-summary-content h5 { font-size: 13px; }
+
+.wa-summary-content p {
+  margin: 6px 0;
+}
+
+.wa-summary-content ul {
+  margin: 4px 0 10px 20px;
+  padding: 0;
+}
+
+.wa-summary-content li {
+  margin: 3px 0;
+}
+
+.wa-summary-content strong {
+  color: #fff;
+}
+
+.wa-summary-content code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* ===== Schedule Modal ===== */
+
+.wa-schedule-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.wa-schedule-field {
+  flex: 1;
+}
+
+.wa-settings-section {
+  color: #8696a0;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 20px;
+  margin-bottom: 8px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.wa-schedule-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.wa-schedule-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.wa-schedule-text {
+  color: #e9edef;
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wa-schedule-meta {
+  color: #8696a0;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.wa-schedule-status.wa-status-pending { color: #60a5fa; }
+.wa-schedule-status.wa-status-processing { color: #fbbf24; }
+.wa-schedule-status.wa-status-sent { color: #00a884; }
+.wa-schedule-status.wa-status-failed { color: #ef4444; }
+.wa-schedule-status.wa-status-canceled { color: #8696a0; }
+
 /* ===== Profile Photo in Avatar ===== */
 
 .wa-avatar img {

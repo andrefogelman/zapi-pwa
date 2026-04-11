@@ -24,6 +24,8 @@ interface Props {
   onDelete: (msg: Message) => Promise<void>;
   onCancelReply: () => void;
   onBack: () => void;
+  onOpenSummary: () => void;
+  onOpenSchedule: () => void;
   initialLoad: React.MutableRefObject<boolean>;
 }
 
@@ -31,7 +33,7 @@ export function ChatPanel({
   chat, messages, loading, loadingOlder, hasOlder, sending,
   replyTarget, onLoadOlder, onSend, onSendFile, onReply, onForward,
   onReact, onToggleStar, onDelete,
-  onCancelReply, onBack, initialLoad,
+  onCancelReply, onBack, onOpenSummary, onOpenSchedule, initialLoad,
 }: Props) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -93,6 +95,26 @@ export function ChatPanel({
           <div className="wa-panel-header-sub">
             {chat.isGroup ? `${chat.msgCount} mensagens` : chat.jid.split("@")[0]}
           </div>
+        </div>
+        <div className="wa-panel-actions">
+          <button
+            className="wa-panel-action"
+            onClick={onOpenSummary}
+            title="Resumir conversa"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+            </svg>
+          </button>
+          <button
+            className="wa-panel-action"
+            onClick={onOpenSchedule}
+            title="Agendar mensagem"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M15 13h1.5v2.82l2.44 1.41-.75 1.3L15 16.69V13zm4-5H5v11h4.67c-.43-.91-.67-1.93-.67-3 0-3.87 3.13-7 7-7 1.07 0 2.09.24 3 .67V8zM5 21c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2h1V1h2v2h8V1h2v2h1c1.1 0 2 .9 2 2v6.1c1.24 1.26 2 2.99 2 4.9 0 3.87-3.13 7-7 7-1.91 0-3.64-.76-4.9-2H5zm11-4.85C18.3 16.15 20 14.44 20 12.15c0-2.29-1.7-4-4-4s-4 1.71-4 4 1.7 4 4 4z"/>
+            </svg>
+          </button>
         </div>
       </div>
 
