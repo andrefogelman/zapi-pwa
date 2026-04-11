@@ -8,9 +8,9 @@ type Step = "name" | "qr" | "connected" | "error";
 type QRPayload = { qr: string; format: "string" | "png_base64" };
 
 export function QRConnectWizard({
-  onDone,
+  onDoneAction,
 }: {
-  onDone: (instanceId: string) => void;
+  onDoneAction: (instanceId: string) => void;
 }) {
   const [step, setStep] = useState<Step>("name");
   const [name, setName] = useState("");
@@ -73,7 +73,7 @@ export function QRConnectWizard({
         if (data.status === "connected") {
           setStep("connected");
           clearInterval(interval);
-          setTimeout(() => onDone(instanceId), 1500);
+          setTimeout(() => onDoneAction(instanceId), 1500);
         }
       } catch {
         // swallow and retry on the next tick — the dev server may be slow
@@ -83,7 +83,7 @@ export function QRConnectWizard({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [step, instanceId, onDone]);
+  }, [step, instanceId, onDoneAction]);
 
   const container = {
     maxWidth: 400,
