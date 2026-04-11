@@ -1,0 +1,207 @@
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+import {
+  OnAudioEventSchema,
+  INTERNAL_HEADER_SECRET,
+  type OnAudioResponse,
+} from "zapi-shared";
+import { getSupabaseServiceRole } from "@/lib/supabase-server";
+import { filterMessage } from "@/lib/filter";
+import { transcribeAudio } from "@/lib/openai";
+import * as waclaw from "@/lib/waclaw";
+import { formatReply } from "@/lib/footer";
+
+export async function POST(req: Request): Promise<Response> {
+  // 1. Shared-secret auth — daemon has no user identity, so we trust a
+  // pre-shared secret in a custom header. Must match the env var set on
+  // both Vercel and the daemon's .env.
+  if (req.headers.get(INTERNAL_HEADER_SECRET) !== process.env.INTERNAL_WEBHOOK_SECRET) {
+    return Response.json(
+      { status: "failed", reason: "unauthorized" } satisfies OnAudioResponse,
+      { status: 401 }
+    );
+  }
+
+  // 2. Schema validation — if the daemon sends a malformed event,
+  // return 400 so the daemon logs it and doesn't retry forever.
+  const parsed = OnAudioEventSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return Response.json(
+      { status: "failed", reason: "invalid payload" } satisfies OnAudioResponse,
+      { status: 400 }
+    );
+  }
+  const event = parsed.data;
+  const supabase = getSupabaseServiceRole();
+
+  // 3. Look up the instance by waclaw_session_id. Skip if unknown
+  // (can happen briefly after a session is created but before the
+  // first message arrives).
+  const { data: instance } = await supabase
+    .from("instances")
+    .select("id, user_id, my_phones, my_lids, connected_phone")
+    .eq("waclaw_session_id", event.waclaw_session_id)
+    .maybeSingle();
+  if (!instance) {
+    return Response.json({
+      status: "skipped",
+      reason: "session not bound",
+    } satisfies OnAudioResponse);
+  }
+
+  // 4. Idempotency — if we already stored this message_id for this
+  // instance, don't reprocess.
+  const { data: existing } = await supabase
+    .from("messages")
+    .select("id")
+    .eq("instance_id", instance.id)
+    .eq("message_id", event.message_id)
+    .maybeSingle();
+  if (existing) {
+    return Response.json({
+      status: "skipped",
+      reason: "duplicate",
+    } satisfies OnAudioResponse);
+  }
+
+  // 5. Fetch group (if applicable) + platform config + user footer, in parallel.
+  const [groupsRes, configRes, userSettingsRes] = await Promise.all([
+    event.is_group
+      ? supabase
+          .from("instance_groups")
+          .select("transcribe_all, send_reply")
+          .eq("instance_id", instance.id)
+          .eq("group_id", event.chat_jid)
+      : Promise.resolve({
+          data: [] as Array<{ transcribe_all: boolean; send_reply: boolean }>,
+        }),
+    supabase.from("platform_config").select("*").eq("id", 1).single(),
+    supabase
+      .from("user_settings")
+      .select("transcription_footer")
+      .eq("user_id", instance.user_id)
+      .single(),
+  ]);
+
+  const groups = groupsRes.data ?? [];
+  const config = configRes.data;
+  const userSettings = userSettingsRes.data;
+
+  // 6. Filter decision (pure function, already tested)
+  const decision = filterMessage({
+    event,
+    instance: {
+      my_phones: instance.my_phones ?? [],
+      my_lids: instance.my_lids ?? [],
+      connected_phone: instance.connected_phone,
+    },
+    group: groups[0] ?? null,
+  });
+
+  if (decision.action === "skip") {
+    // Still store the message so the chat UI shows the audio bubble.
+    await supabase.from("messages").insert({
+      instance_id: instance.id,
+      message_id: event.message_id,
+      chat_jid: event.chat_jid,
+      sender: event.sender_name ?? event.sender_phone,
+      type: "audio",
+      from_me: event.from_me,
+      media_url: event.audio_url,
+      status: "received",
+      timestamp: event.timestamp,
+    });
+    return Response.json({
+      status: "skipped",
+      reason: decision.reason,
+    } satisfies OnAudioResponse);
+  }
+
+  // 7. Download audio + run Whisper
+  let transcribedText: string;
+  try {
+    const audioRes = await fetch(event.audio_url);
+    if (!audioRes.ok) {
+      throw new Error(`audio download failed: ${audioRes.status}`);
+    }
+    const audioBuffer = await audioRes.arrayBuffer();
+    transcribedText = await transcribeAudio(audioBuffer, {
+      model: config?.neura_model,
+      prompt: config?.neura_prompt,
+      temperature: config?.neura_temperature,
+    });
+  } catch (err) {
+    // Mark the message as failed so the admin dashboard can surface it.
+    await supabase.from("messages").insert({
+      instance_id: instance.id,
+      message_id: event.message_id,
+      chat_jid: event.chat_jid,
+      sender: event.sender_name ?? event.sender_phone,
+      type: "audio",
+      from_me: event.from_me,
+      media_url: event.audio_url,
+      status: "transcription_failed",
+      timestamp: event.timestamp,
+    });
+    return Response.json(
+      { status: "failed", reason: String(err) } satisfies OnAudioResponse,
+      { status: 500 }
+    );
+  }
+
+  // 8. Persist message + transcription
+  const { data: messageRow, error: insertErr } = await supabase
+    .from("messages")
+    .insert({
+      instance_id: instance.id,
+      message_id: event.message_id,
+      chat_jid: event.chat_jid,
+      sender: event.sender_name ?? event.sender_phone,
+      text: transcribedText,
+      type: "audio",
+      from_me: event.from_me,
+      media_url: event.audio_url,
+      status: "received",
+      timestamp: event.timestamp,
+    })
+    .select("id")
+    .single();
+
+  if (insertErr || !messageRow) {
+    return Response.json(
+      {
+        status: "failed",
+        reason: `persist message: ${insertErr?.message ?? "no row returned"}`,
+      } satisfies OnAudioResponse,
+      { status: 500 }
+    );
+  }
+
+  await supabase.from("transcriptions").insert({
+    message_id: messageRow.id,
+    instance_id: instance.id,
+    text: transcribedText,
+    duration_ms: event.audio_duration_seconds * 1000,
+  });
+
+  // 9. Reply to WhatsApp if the decision asks for it. Non-fatal if
+  // waclaw rejects — the transcription is already saved.
+  if (decision.sendReply) {
+    const footer = userSettings?.transcription_footer ?? "Transcrição por IA 😜";
+    const replyText = formatReply(transcribedText, footer);
+    try {
+      await waclaw.sendMessage({
+        sessionId: event.waclaw_session_id,
+        chatJid: event.chat_jid,
+        text: replyText,
+        replyToMessageId: event.message_id,
+      });
+    } catch (err) {
+      console.error("on-audio: failed to send reply to whatsapp:", err);
+      // Do not return failed — the transcription is still valid.
+    }
+  }
+
+  return Response.json({ status: "transcribed" } satisfies OnAudioResponse);
+}
