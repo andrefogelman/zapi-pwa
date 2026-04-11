@@ -178,12 +178,22 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  await supabase.from("transcriptions").insert({
+  const { error: trInsertErr } = await supabase.from("transcriptions").insert({
     message_id: messageRow.id,
     instance_id: instance.id,
     text: transcribedText,
     duration_ms: event.audio_duration_seconds * 1000,
   });
+  if (trInsertErr) {
+    // Non-fatal: the text is already in messages.text and the chat UI will
+    // still display it. We just lose the dedicated transcription row (used by
+    // stats and future features). Log loudly so operators can reconcile.
+    console.error("on-audio: transcriptions insert failed", {
+      message_id: messageRow.id,
+      instance_id: instance.id,
+      err: trInsertErr,
+    });
+  }
 
   // 9. Reply to WhatsApp if the decision asks for it. Non-fatal if
   // waclaw rejects — the transcription is already saved.
