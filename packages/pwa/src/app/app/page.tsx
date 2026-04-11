@@ -13,6 +13,7 @@ import { useChats, type Chat } from "./hooks/useChats";
 import { useMessages, type Message } from "./hooks/useMessages";
 import { useInstances } from "./hooks/useInstances";
 import { useWaclaw } from "./hooks/useWaclaw";
+import { QRConnectWizard } from "./components/QRConnectWizard";
 
 export default function AppMain() {
   const { session, signOut } = useAuth();
@@ -138,6 +139,37 @@ export default function AppMain() {
   function handleSelectChat(chat: Chat) {
     setSelectedChat(chat);
     setReplyTarget(null);
+  }
+
+  // First-run experience: user has no instances yet — show QR wizard full-screen
+  if (!instLoading && instances.length === 0) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#f5f5f5",
+        }}
+      >
+        <div>
+          <h1 style={{ textAlign: "center", marginBottom: "1rem" }}>
+            Bem-vindo ao zapi-pwa
+          </h1>
+          <p
+            style={{
+              textAlign: "center",
+              color: "#666",
+              marginBottom: "2rem",
+            }}
+          >
+            Vamos conectar seu primeiro WhatsApp
+          </p>
+          <QRConnectWizard onDoneAction={() => reload()} />
+        </div>
+      </div>
+    );
   }
 
   return (
