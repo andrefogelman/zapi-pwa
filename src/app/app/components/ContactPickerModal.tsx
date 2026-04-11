@@ -66,12 +66,43 @@ export function ContactPickerModal({ open, onClose, onSend }: Props) {
     setLoading(true);
     setError(null);
     try {
+      // First check what scopes this token actually has
+      const info = await fetch(
+        `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${token}`
+      );
+      if (info.ok) {
+        const infoData = await info.json();
+        const scopes = (infoData.scope || "").split(" ");
+        if (!scopes.includes("https://www.googleapis.com/auth/contacts.readonly")) {
+          setError(
+            "Este token não tem permissão pra ler contatos. Clique em 'Reconectar com Google' pra autorizar."
+          );
+          setGoogleContacts(null);
+          return;
+        }
+      }
+
       const res = await fetch(
         "https://people.googleapis.com/v1/people/me/connections?personFields=names,phoneNumbers,emailAddresses,organizations&pageSize=1000",
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.status === 401) {
         setError("Token do Google expirou. Reconecte para acessar contatos.");
+        setGoogleContacts(null);
+        return;
+      }
+      if (res.status === 403) {
+        // Try to extract Google's error message
+        let detail = "";
+        try {
+          const errData = await res.json();
+          detail = errData?.error?.message || "";
+        } catch {}
+        setError(
+          `HTTP 403${detail ? `: ${detail}` : ""}. ` +
+          "Verifique se o scope 'contacts.readonly' está habilitado no OAuth consent screen do Google Cloud, " +
+          "ou clique em 'Reconectar com Google' pra pedir permissão."
+        );
         setGoogleContacts(null);
         return;
       }
@@ -199,7 +230,12 @@ export function ContactPickerModal({ open, onClose, onSend }: Props) {
               ) : loading ? (
                 <div className="wa-contact-empty">Carregando contatos...</div>
               ) : error ? (
-                <div className="wa-modal-error">{error}</div>
+                <div className="wa-contact-empty">
+                  <div className="wa-modal-error">{error}</div>
+                  <button className="wa-modal-primary" onClick={() => signInWithGoogle()}>
+                    Reconectar com Google
+                  </button>
+                </div>
               ) : googleContacts && googleContacts.length === 0 ? (
                 <div className="wa-contact-empty">Nenhum contato encontrado na conta Google.</div>
               ) : (
