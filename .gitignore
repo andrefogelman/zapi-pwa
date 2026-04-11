@@ -40,3 +40,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+
+# Monorepo workspace artifacts
+packages/*/node_modules
+packages/*/.next
+packages/*/dist
+packages/*/.turbo
+packages/*/tsconfig.tsbuildinfo
+
+# Daemon secrets
+packages/daemon/.env
