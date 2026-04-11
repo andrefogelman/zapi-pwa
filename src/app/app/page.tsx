@@ -36,12 +36,50 @@ export default function AppMain() {
   const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts } = useChats(sessionId);
   const { fetcher } = useWaclaw(sessionId);
 
-  async function handleForwardSend(chatJid: string, text: string) {
-    if (!chatJid || !text.trim()) return;
-    await fetcher("send", {
+  async function handleForwardSend(chatJid: string, msg: Message) {
+    if (!chatJid) return;
+
+    // Media forward: refetch bytes from the authenticated proxy URL, encode
+    // as base64, and post to send-file on the target chat. The mediaUrl
+    // already carries the user's access token and hits our Next proxy which
+    // falls through to waclaw's /sessions/:id/media/:jid/:msgId endpoint,
+    // so waclaw will lazy-download from WhatsApp on-demand if the file isn't
+    // yet cached locally. Caption and filename are preserved.
+    if (msg.mediaUrl) {
+      const res = await fetch(msg.mediaUrl);
+      if (!res.ok) throw new Error(`Falha ao buscar mídia: HTTP ${res.status}`);
+      const blob = await res.blob();
+      const dataBase64 = await blobToBase64(blob);
+      const mime = msg.mimeType?.split(";")[0].trim() || blob.type || "application/octet-stream";
+      const filename =
+        msg.filename ||
+        inferFilename(mime, msg.id);
+      const result = await fetcher("send-file", {
+        method: "POST",
+        body: JSON.stringify({
+          to: chatJid,
+          filename,
+          mimeType: mime,
+          caption: msg.mediaCaption || undefined,
+          dataBase64,
+        }),
+      });
+      if (!result || result.error || result.ok === false) {
+        throw new Error(result?.error || "Falha ao encaminhar mídia");
+      }
+      return;
+    }
+
+    // Text-only forward
+    const text = (msg.text || "").trim();
+    if (!text) throw new Error("Mensagem vazia");
+    const result = await fetcher("send", {
       method: "POST",
       body: JSON.stringify({ to: chatJid, message: text }),
     });
+    if (!result || result.error) {
+      throw new Error(result?.error || "Falha ao encaminhar texto");
+    }
   }
   const {
     messages, loading: msgsLoading, loadingOlder, hasOlder, sending,
@@ -128,4 +166,35 @@ export default function AppMain() {
       />
     </div>
   );
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error || new Error("File read failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function inferFilename(mime: string, msgId: string): string {
+  const ext =
+    mime.startsWith("image/jpeg") ? "jpg" :
+    mime.startsWith("image/png") ? "png" :
+    mime.startsWith("image/webp") ? "webp" :
+    mime.startsWith("image/") ? "img" :
+    mime.startsWith("video/mp4") ? "mp4" :
+    mime.startsWith("video/webm") ? "webm" :
+    mime.startsWith("video/") ? "vid" :
+    mime.startsWith("audio/ogg") ? "ogg" :
+    mime.startsWith("audio/mpeg") ? "mp3" :
+    mime.startsWith("audio/mp4") ? "m4a" :
+    mime.startsWith("audio/") ? "oga" :
+    mime.includes("pdf") ? "pdf" :
+    "bin";
+  return `fwd-${msgId.slice(0, 12)}.${ext}`;
 }

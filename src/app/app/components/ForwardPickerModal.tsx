@@ -10,12 +10,13 @@ interface Props {
   onClose: () => void;
   message: Message | null;
   chats: Chat[];
-  onSend: (chatJid: string, text: string) => Promise<void>;
+  onSend: (chatJid: string, msg: Message) => Promise<void>;
 }
 
 export function ForwardPickerModal({ open, onClose, message, chats, onSend }: Props) {
   const [search, setSearch] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendingTo, setSendingTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -30,20 +31,25 @@ export function ForwardPickerModal({ open, onClose, message, chats, onSend }: Pr
 
   async function handlePick(chat: Chat) {
     if (!message || sending) return;
-    const text = message.text || message.mediaCaption || "";
-    if (!text.trim()) {
-      setError("Não é possível encaminhar — mensagem sem texto. Mídia ainda não suportada.");
+    const hasContent =
+      !!(message.text && message.text.trim()) ||
+      !!message.mediaUrl ||
+      !!message.mediaCaption;
+    if (!hasContent) {
+      setError("Mensagem vazia, nada para encaminhar.");
       return;
     }
     setSending(true);
+    setSendingTo(chat.jid);
     setError(null);
     try {
-      await onSend(chat.jid, text);
+      await onSend(chat.jid, message);
       onClose();
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setSending(false);
+      setSendingTo(null);
     }
   }
 
@@ -83,7 +89,11 @@ export function ForwardPickerModal({ open, onClose, message, chats, onSend }: Pr
                   <div className="wa-contact-list-info">
                     <div className="wa-contact-list-name">{displayName}</div>
                     <div className="wa-contact-list-sub">
-                      {c.isGroup ? "Grupo" : c.jid.split("@")[0]}
+                      {sendingTo === c.jid
+                        ? "Encaminhando..."
+                        : c.isGroup
+                        ? "Grupo"
+                        : c.jid.split("@")[0]}
                     </div>
                   </div>
                 </button>
