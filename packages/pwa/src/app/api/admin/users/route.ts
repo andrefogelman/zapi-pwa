@@ -6,6 +6,9 @@ export async function GET(request: Request) {
   try {
     const { supabaseAdmin } = await requireSuperAdmin(request);
 
+    // Supabase's listUsers caps perPage at 200; beyond that users are silently
+    // truncated. OK at current scale (family + occasional invitees). Add pagination
+    // (page param, "Load more" UI) when the user count approaches 150.
     const { data: authList, error: listErr } = await supabaseAdmin.auth.admin.listUsers({
       page: 1,
       perPage: 200,

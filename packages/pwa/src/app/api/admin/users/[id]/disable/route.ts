@@ -34,12 +34,22 @@ export async function PATCH(
       throw rpcErr;
     }
 
-    // Also invalidate / restore auth sessions via service role
+    // Also invalidate / restore auth sessions via service role.
+    // Two-step operation is NOT atomic: if this step fails, user_settings.status
+    // is already set but auth sessions remain valid (or conversely, re-enabling
+    // fails to restore sessions). We log loudly so an operator can reconcile
+    // manually via the Supabase dashboard if this diverges.
     const banDuration = disabled ? "876000h" : "none";
     const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(id, {
       ban_duration: banDuration,
     });
-    if (authErr) throw authErr;
+    if (authErr) {
+      console.error(
+        "disable: RPC succeeded but auth ban update failed — inconsistent state",
+        { user_id: id, new_status: newStatus, ban_duration: banDuration, authErr }
+      );
+      throw authErr;
+    }
 
     return Response.json({ ok: true });
   } catch (err) {

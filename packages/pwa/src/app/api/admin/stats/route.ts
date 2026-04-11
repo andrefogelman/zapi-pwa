@@ -6,6 +6,9 @@ export async function GET(request: Request) {
   try {
     const { supabaseAdmin } = await requireSuperAdmin(request);
 
+    // "Today" = since UTC midnight. At 21h+ BRT (UTC-3) this already means
+    // the NEXT UTC day, so the counter flips ~3h before local midnight.
+    // TODO: use tenant timezone when we have per-user locale preferences.
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
     const iso = startOfDay.toISOString();
