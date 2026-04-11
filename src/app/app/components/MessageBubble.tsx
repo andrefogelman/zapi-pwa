@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { formatMsgTime } from "../lib/formatters";
 import type { Message, ReplyTarget } from "../hooks/useMessages";
 import { AudioMessage } from "./AudioMessage";
 import { ImageMessage } from "./ImageMessage";
 import { ContactMessage } from "./ContactMessage";
+import { MessageContextMenu } from "./MessageContextMenu";
 
 interface Props {
   msg: Message;
   isGroup: boolean;
   onReply: (target: ReplyTarget) => void;
+  onForward: (msg: Message) => void;
 }
 
 function StatusTicks({ msg }: { msg: Message }) {
@@ -34,17 +37,13 @@ function StatusTicks({ msg }: { msg: Message }) {
   );
 }
 
-export function MessageBubble({ msg, isGroup, onReply }: Props) {
+export function MessageBubble({ msg, isGroup, onReply, onForward }: Props) {
   const time = formatMsgTime(msg.timestamp);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
-    onReply({
-      id: msg.id,
-      senderName: msg.fromMe ? "Você" : msg.senderName,
-      text: msg.text,
-      fromMe: msg.fromMe,
-    });
+    setMenu({ x: e.clientX, y: e.clientY });
   }
 
   function renderContent() {
@@ -104,17 +103,29 @@ export function MessageBubble({ msg, isGroup, onReply }: Props) {
   }
 
   return (
-    <div className={`wa-msg ${msg.fromMe ? "out" : "in"}`} onContextMenu={handleContextMenu}>
-      <div className="wa-bubble">
-        {!msg.fromMe && isGroup && msg.senderName && (
-          <div className="wa-msg-sender">{msg.senderName}</div>
-        )}
-        {renderContent()}
-        <span className="wa-msg-time">
-          {time}
-          <StatusTicks msg={msg} />
-        </span>
+    <>
+      <div className={`wa-msg ${msg.fromMe ? "out" : "in"}`} onContextMenu={handleContextMenu}>
+        <div className="wa-bubble">
+          {!msg.fromMe && isGroup && msg.senderName && (
+            <div className="wa-msg-sender">{msg.senderName}</div>
+          )}
+          {renderContent()}
+          <span className="wa-msg-time">
+            {time}
+            <StatusTicks msg={msg} />
+          </span>
+        </div>
       </div>
-    </div>
+      {menu && (
+        <MessageContextMenu
+          msg={msg}
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          onReply={onReply}
+          onForward={onForward}
+        />
+      )}
+    </>
   );
 }

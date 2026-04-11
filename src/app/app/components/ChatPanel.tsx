@@ -18,6 +18,7 @@ interface Props {
   onSend: (text: string) => void;
   onSendFile: (file: File, caption?: string) => Promise<void>;
   onReply: (target: ReplyTarget) => void;
+  onForward: (msg: Message) => void;
   onCancelReply: () => void;
   onBack: () => void;
   initialLoad: React.MutableRefObject<boolean>;
@@ -25,7 +26,8 @@ interface Props {
 
 export function ChatPanel({
   chat, messages, loading, loadingOlder, hasOlder, sending,
-  replyTarget, onLoadOlder, onSend, onSendFile, onReply, onCancelReply, onBack, initialLoad,
+  replyTarget, onLoadOlder, onSend, onSendFile, onReply, onForward,
+  onCancelReply, onBack, initialLoad,
 }: Props) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -97,7 +99,13 @@ export function ChatPanel({
           <div key={g.key}>
             <DaySeparator label={g.label} />
             {g.msgs.map((msg) => (
-              <MessageBubble key={msg.id} msg={msg} isGroup={chat.isGroup} onReply={onReply} />
+              <MessageBubble
+                key={msg.id}
+                msg={msg}
+                isGroup={chat.isGroup}
+                onReply={onReply}
+                onForward={onForward}
+              />
             ))}
           </div>
         ))}

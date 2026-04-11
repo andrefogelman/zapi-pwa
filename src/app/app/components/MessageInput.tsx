@@ -5,6 +5,7 @@ import type { ReplyTarget } from "../hooks/useMessages";
 import { AttachMenu } from "./AttachMenu";
 import { AIImageModal } from "./AIImageModal";
 import { ContactPickerModal } from "./ContactPickerModal";
+import { VoiceRecorder } from "./VoiceRecorder";
 
 interface Props {
   value: string;
@@ -91,11 +92,18 @@ export function MessageInput({
           onKeyDown={handleKeyDown}
           disabled={sending}
         />
-        <button className="wa-send-btn" onClick={onSend} disabled={!value.trim() || sending}>
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-            <path d="M1.101 21.757L23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"/>
-          </svg>
-        </button>
+        {value.trim() ? (
+          <button className="wa-send-btn" onClick={onSend} disabled={sending}>
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+              <path d="M1.101 21.757L23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"/>
+            </svg>
+          </button>
+        ) : (
+          <VoiceRecorder
+            onSend={(file) => onSendFile(file)}
+            disabled={sending}
+          />
+        )}
       </div>
 
       {/* Hidden file inputs */}

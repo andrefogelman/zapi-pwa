@@ -1548,6 +1548,174 @@
   font-weight: 500;
 }
 
+/* ===== Voice Recorder ===== */
+
+.wa-mic-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #8696a0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+}
+
+.wa-mic-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e9edef;
+}
+
+.wa-mic-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wa-voice-error-tip {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  background: rgba(239, 68, 68, 0.9);
+  color: #fff;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.wa-voice-bar {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 12px;
+  padding: 4px 12px;
+  background: #2a3942;
+  border-radius: 24px;
+  height: 40px;
+}
+
+.wa-voice-cancel {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wa-voice-cancel:hover {
+  color: #f87171;
+}
+
+.wa-voice-dot {
+  width: 10px;
+  height: 10px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: wa-pulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes wa-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.wa-voice-time {
+  font-size: 14px;
+  color: #e9edef;
+  font-family: monospace;
+  min-width: 48px;
+}
+
+.wa-voice-spacer {
+  flex: 1;
+}
+
+.wa-voice-send {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #00a884;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.wa-voice-send:hover {
+  background: #018a72;
+}
+
+/* ===== Message Context Menu ===== */
+
+.wa-ctx-menu {
+  position: fixed;
+  background: #233138;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 6px 0;
+  min-width: 200px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+}
+
+.wa-ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  color: #e9edef;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.wa-ctx-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.wa-ctx-item:disabled,
+.wa-ctx-item.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.wa-ctx-item.danger {
+  color: #f87171;
+}
+
+.wa-ctx-item svg {
+  flex-shrink: 0;
+  color: #8696a0;
+}
+
+.wa-ctx-item.danger svg {
+  color: #f87171;
+}
+
+.wa-ctx-sep {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 4px 0;
+}
+
 /* ===== Profile Photo in Avatar ===== */
 
 .wa-avatar img {

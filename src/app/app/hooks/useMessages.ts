@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useWaclaw } from "./useWaclaw";
 import { useAuth } from "@/lib/use-auth";
 import { parseVCard } from "../lib/vcard";
@@ -184,6 +184,105 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
     setReplyTarget(null);
     setSending(false);
   }, [chatJid, fetcher, sending]);
+
+  // --- Auto-transcription pipeline ---
+  // On every message list change, scan for audio messages without a
+  // transcription and fire /api/transcribe for each. Cached on the server
+  // so repeat calls are cheap.
+  const inFlightTranscriptions = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!sessionId || !session?.access_token) return;
+    const token = session.access_token;
+
+    // Bulk-hydrate cached transcriptions on first load of a chat
+    const toHydrate = messages.filter(
+      (m) => (m.type === "audio" || m.type === "ptt") && !m.transcription && !m.id.startsWith("local-")
+    );
+    if (toHydrate.length === 0) return;
+
+    let cancelled = false;
+
+    async function run() {
+      // 1) Bulk GET of cached ones
+      try {
+        const res = await fetch(`/api/transcribe?sessionId=${encodeURIComponent(sessionId!)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          const map: Record<string, string> = data?.transcriptions || {};
+          if (Object.keys(map).length > 0) {
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (!map[m.id]) return m;
+                if (m.transcription) return m;
+                return { ...m, transcription: map[m.id], transcriptionStatus: "completed" };
+              })
+            );
+          }
+        }
+      } catch {}
+
+      if (cancelled) return;
+
+      // 2) For each still-missing audio, fire a transcription request
+      for (const m of toHydrate) {
+        if (cancelled) return;
+        if (inFlightTranscriptions.current.has(m.id)) continue;
+        // Check against latest state by closing over current messages is
+        // stale; we'll rely on the Set + server-side caching
+        inFlightTranscriptions.current.add(m.id);
+
+        // Mark as processing in UI
+        setMessages((prev) =>
+          prev.map((x) => (x.id === m.id ? { ...x, transcriptionStatus: "processing" } : x))
+        );
+
+        fetch("/api/transcribe", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ sessionId, msgId: m.id, chatJid: m.chatJid }),
+        })
+          .then(async (r) => {
+            const data = await r.json().catch(() => ({}));
+            if (cancelled) return;
+            if (r.ok && data.text) {
+              setMessages((prev) =>
+                prev.map((x) =>
+                  x.id === m.id
+                    ? { ...x, transcription: data.text, transcriptionStatus: "completed" }
+                    : x
+                )
+              );
+            } else {
+              setMessages((prev) =>
+                prev.map((x) =>
+                  x.id === m.id ? { ...x, transcriptionStatus: "failed" } : x
+                )
+              );
+            }
+          })
+          .catch(() => {
+            if (cancelled) return;
+            setMessages((prev) =>
+              prev.map((x) =>
+                x.id === m.id ? { ...x, transcriptionStatus: "failed" } : x
+              )
+            );
+          })
+          .finally(() => {
+            inFlightTranscriptions.current.delete(m.id);
+          });
+      }
+    }
+
+    run();
+    return () => { cancelled = true; };
+  }, [messages, sessionId, session?.access_token]);
 
   return {
     messages, loading, loadingOlder, hasOlder, sending,

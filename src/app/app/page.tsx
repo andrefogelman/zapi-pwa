@@ -6,9 +6,11 @@ import { Sidebar } from "./components/Sidebar";
 import { ChatPanel } from "./components/ChatPanel";
 import { EmptyState } from "./components/EmptyState";
 import { SettingsModal } from "./components/SettingsModal";
+import { ForwardPickerModal } from "./components/ForwardPickerModal";
 import { useChats, type Chat } from "./hooks/useChats";
-import { useMessages } from "./hooks/useMessages";
+import { useMessages, type Message } from "./hooks/useMessages";
 import { useInstances } from "./hooks/useInstances";
+import { useWaclaw } from "./hooks/useWaclaw";
 
 export default function AppMain() {
   const { session, signOut } = useAuth();
@@ -16,6 +18,7 @@ export default function AppMain() {
   const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [forwardTarget, setForwardTarget] = useState<Message | null>(null);
 
   // Auto-select the first waclaw-enabled instance once the list loads
   useEffect(() => {
@@ -31,6 +34,15 @@ export default function AppMain() {
   const sessionId = activeInstance?.waclaw_session_id || null;
 
   const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts } = useChats(sessionId);
+  const { fetcher } = useWaclaw(sessionId);
+
+  async function handleForwardSend(chatJid: string, text: string) {
+    if (!chatJid || !text.trim()) return;
+    await fetcher("send", {
+      method: "POST",
+      body: JSON.stringify({ to: chatJid, message: text }),
+    });
+  }
   const {
     messages, loading: msgsLoading, loadingOlder, hasOlder, sending,
     loadMessages, loadOlder, sendMessage, sendFile,
@@ -89,6 +101,7 @@ export default function AppMain() {
             onSend={sendMessage}
             onSendFile={sendFile}
             onReply={setReplyTarget}
+            onForward={setForwardTarget}
             onCancelReply={() => setReplyTarget(null)}
             onBack={() => setSelectedChat(null)}
             initialLoad={initialLoad}
@@ -104,6 +117,14 @@ export default function AppMain() {
         onDelete={remove}
         onRename={rename}
         onReload={reload}
+      />
+
+      <ForwardPickerModal
+        open={!!forwardTarget}
+        onClose={() => setForwardTarget(null)}
+        message={forwardTarget}
+        chats={chats}
+        onSend={handleForwardSend}
       />
     </div>
   );
