@@ -36,6 +36,39 @@ export default function AppMain() {
   const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts } = useChats(sessionId);
   const { fetcher } = useWaclaw(sessionId);
 
+  async function handleReact(msg: Message, emoji: string) {
+    const senderJid = msg.senderJid || (msg.fromMe ? msg.chatJid : msg.chatJid);
+    const result = await fetcher("react", {
+      method: "POST",
+      body: JSON.stringify({
+        chatJid: msg.chatJid,
+        msgId: msg.id,
+        senderJid,
+        fromMe: msg.fromMe,
+        emoji,
+      }),
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "Falha ao reagir");
+    }
+  }
+
+  async function handleDelete(msg: Message) {
+    const senderJid = msg.senderJid || msg.chatJid;
+    const result = await fetcher("delete", {
+      method: "POST",
+      body: JSON.stringify({
+        chatJid: msg.chatJid,
+        msgId: msg.id,
+        senderJid,
+        fromMe: msg.fromMe,
+      }),
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "Falha ao excluir");
+    }
+  }
+
   async function handleForwardSend(chatJid: string, msg: Message) {
     if (!chatJid) return;
 
@@ -83,7 +116,7 @@ export default function AppMain() {
   }
   const {
     messages, loading: msgsLoading, loadingOlder, hasOlder, sending,
-    loadMessages, loadOlder, sendMessage, sendFile,
+    loadMessages, loadOlder, sendMessage, sendFile, toggleStar,
     replyTarget, setReplyTarget, initialLoad,
   } = useMessages(sessionId, selectedChat?.jid || null);
 
@@ -140,6 +173,9 @@ export default function AppMain() {
             onSendFile={sendFile}
             onReply={setReplyTarget}
             onForward={setForwardTarget}
+            onReact={handleReact}
+            onToggleStar={toggleStar}
+            onDelete={handleDelete}
             onCancelReply={() => setReplyTarget(null)}
             onBack={() => setSelectedChat(null)}
             initialLoad={initialLoad}

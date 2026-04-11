@@ -1716,6 +1716,43 @@
   margin: 4px 0;
 }
 
+.wa-ctx-reactions {
+  display: flex;
+  flex-direction: row;
+  padding: 8px;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wa-ctx-emoji {
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, transform 0.1s;
+}
+
+.wa-ctx-emoji:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.2);
+}
+
+.wa-ctx-emoji:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wa-msg-star {
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
 /* ===== Profile Photo in Avatar ===== */
 
 .wa-avatar img {

@@ -22,6 +22,7 @@ export interface Message {
   transcription: string | null;
   transcriptionStatus: string | null;
   contact: MessageContact | null;
+  starred: boolean;
 }
 
 export interface MessageContact {
@@ -53,7 +54,7 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
   // with the user's access token so <audio>/<img> src can hit it directly.
   // Also parse vCard payloads into structured contact data for rendering.
   const enrichMessage = useCallback((m: Message): Message => {
-    let enriched = m;
+    let enriched: Message = { ...m, starred: m.starred ?? false };
 
     if (m.mediaUrl && sessionId && session?.access_token) {
       const isRelative = !m.mediaUrl.startsWith("http") && !m.mediaUrl.startsWith("/");
@@ -122,6 +123,7 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
       transcription: null,
       transcriptionStatus: null,
       contact: null,
+      starred: false,
     }]);
     setReplyTarget(null);
     setSending(false);
@@ -157,6 +159,7 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
       transcription: null,
       transcriptionStatus: null,
       contact: null,
+      starred: false,
     }]);
 
     try {
@@ -184,6 +187,85 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
     setReplyTarget(null);
     setSending(false);
   }, [chatJid, fetcher, sending]);
+
+  // --- Starred messages hydration ---
+  // On sessionId change, fetch the user's stars for this session and
+  // merge into messages state as they arrive.
+  const starsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!sessionId || !session?.access_token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/starred?sessionId=${encodeURIComponent(sessionId)}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const starred: string[] = data?.starred || [];
+        starsRef.current = new Set(starred);
+        // Apply to any messages already loaded
+        setMessages((prev) =>
+          prev.map((m) => (starsRef.current.has(m.id) ? { ...m, starred: true } : m))
+        );
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [sessionId, session?.access_token]);
+
+  // When new messages load, apply the starred set
+  useEffect(() => {
+    if (starsRef.current.size === 0) return;
+    setMessages((prev) => {
+      let changed = false;
+      const next = prev.map((m) => {
+        const shouldBeStarred = starsRef.current.has(m.id);
+        if (shouldBeStarred !== !!m.starred) {
+          changed = true;
+          return { ...m, starred: shouldBeStarred };
+        }
+        return m;
+      });
+      return changed ? next : prev;
+    });
+  }, [messages.length]);
+
+  const toggleStar = useCallback(async (msgId: string) => {
+    if (!sessionId || !session?.access_token) return;
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg) return;
+    const newStarred = !msg.starred;
+
+    // Optimistic toggle
+    if (newStarred) starsRef.current.add(msgId);
+    else starsRef.current.delete(msgId);
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msgId ? { ...m, starred: newStarred } : m))
+    );
+
+    try {
+      await fetch("/api/starred", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          sessionId,
+          msgId,
+          chatJid: msg.chatJid,
+          starred: newStarred,
+        }),
+      });
+    } catch {
+      // Rollback on failure
+      if (newStarred) starsRef.current.delete(msgId);
+      else starsRef.current.add(msgId);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === msgId ? { ...m, starred: !newStarred } : m))
+      );
+    }
+  }, [sessionId, session?.access_token, messages]);
 
   // --- Auto-transcription pipeline ---
   // On every message list change, scan for audio messages without a
@@ -286,7 +368,7 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
 
   return {
     messages, loading, loadingOlder, hasOlder, sending,
-    loadMessages, loadOlder, sendMessage, sendFile,
+    loadMessages, loadOlder, sendMessage, sendFile, toggleStar,
     replyTarget, setReplyTarget,
     initialLoad,
   };

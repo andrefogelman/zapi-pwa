@@ -19,6 +19,9 @@ interface Props {
   onSendFile: (file: File, caption?: string) => Promise<void>;
   onReply: (target: ReplyTarget) => void;
   onForward: (msg: Message) => void;
+  onReact: (msg: Message, emoji: string) => Promise<void>;
+  onToggleStar: (msgId: string) => Promise<void>;
+  onDelete: (msg: Message) => Promise<void>;
   onCancelReply: () => void;
   onBack: () => void;
   initialLoad: React.MutableRefObject<boolean>;
@@ -27,6 +30,7 @@ interface Props {
 export function ChatPanel({
   chat, messages, loading, loadingOlder, hasOlder, sending,
   replyTarget, onLoadOlder, onSend, onSendFile, onReply, onForward,
+  onReact, onToggleStar, onDelete,
   onCancelReply, onBack, initialLoad,
 }: Props) {
   const [input, setInput] = useState("");
@@ -105,6 +109,9 @@ export function ChatPanel({
                 isGroup={chat.isGroup}
                 onReply={onReply}
                 onForward={onForward}
+                onReact={onReact}
+                onToggleStar={onToggleStar}
+                onDelete={onDelete}
               />
             ))}
           </div>

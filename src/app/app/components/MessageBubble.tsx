@@ -11,6 +11,9 @@ interface Props {
   isGroup: boolean;
   onReply: (target: ReplyTarget) => void;
   onForward: (msg: Message) => void;
+  onReact: (msg: Message, emoji: string) => Promise<void>;
+  onToggleStar: (msgId: string) => Promise<void>;
+  onDelete: (msg: Message) => Promise<void>;
 }
 
 function StatusTicks({ msg }: { msg: Message }) {
@@ -37,7 +40,7 @@ function StatusTicks({ msg }: { msg: Message }) {
   );
 }
 
-export function MessageBubble({ msg, isGroup, onReply, onForward }: Props) {
+export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onToggleStar, onDelete }: Props) {
   const time = formatMsgTime(msg.timestamp);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
@@ -111,6 +114,17 @@ export function MessageBubble({ msg, isGroup, onReply, onForward }: Props) {
           )}
           {renderContent()}
           <span className="wa-msg-time">
+            {msg.starred && (
+              <svg
+                className="wa-msg-star"
+                viewBox="0 0 24 24"
+                width="12"
+                height="12"
+                fill="#f59e0b"
+              >
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              </svg>
+            )}
             {time}
             <StatusTicks msg={msg} />
           </span>
@@ -124,6 +138,9 @@ export function MessageBubble({ msg, isGroup, onReply, onForward }: Props) {
           onClose={() => setMenu(null)}
           onReply={onReply}
           onForward={onForward}
+          onReact={onReact}
+          onToggleStar={onToggleStar}
+          onDelete={onDelete}
         />
       )}
     </>
