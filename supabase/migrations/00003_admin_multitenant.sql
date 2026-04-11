@@ -110,33 +110,44 @@ CREATE TRIGGER protect_user_settings_sensitive
 
 -- ------------------------------------------------------------
 -- admin_update_user_role(): SECURITY DEFINER function used by
--- /api/admin/users/[id]/role via supabase.rpc(). Validates the
--- caller, bumps the bypass flag, then updates.
+-- /api/admin/users/[id]/role via supabase.rpc(). Validates that
+-- the caller (via auth.uid()) is a super_admin, bumps the bypass
+-- flag, then updates.
+--
+-- IMPORTANT: this function must be called with a USER JWT (not the
+-- service role), because auth.uid() is NULL under the service role.
+-- The admin routes in Phase 3 will create a user-scoped Supabase
+-- client from the caller's Bearer token specifically for RPC calls.
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.admin_update_user_role(
   target_user_id UUID,
-  new_role TEXT,
-  caller_user_id UUID
+  new_role TEXT
 )
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+  caller UUID := auth.uid();
 BEGIN
+  IF caller IS NULL THEN
+    RAISE EXCEPTION 'no authenticated caller (did you call with service role?)';
+  END IF;
+
   IF new_role NOT IN ('user', 'super_admin') THEN
     RAISE EXCEPTION 'invalid role: %', new_role;
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM public.user_settings
-    WHERE user_id = caller_user_id
+    WHERE user_id = caller
       AND role = 'super_admin'
       AND status = 'active'
   ) THEN
     RAISE EXCEPTION 'caller is not super_admin';
   END IF;
 
-  IF target_user_id = caller_user_id AND new_role != 'super_admin' THEN
+  IF target_user_id = caller AND new_role != 'super_admin' THEN
     RAISE EXCEPTION 'cannot demote self';
   END IF;
 
@@ -150,31 +161,37 @@ $$;
 
 -- ------------------------------------------------------------
 -- admin_update_user_status(): mirror for disable/enable
+-- Same constraint: must be called with a USER JWT, not service role.
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.admin_update_user_status(
   target_user_id UUID,
-  new_status TEXT,
-  caller_user_id UUID
+  new_status TEXT
 )
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+  caller UUID := auth.uid();
 BEGIN
+  IF caller IS NULL THEN
+    RAISE EXCEPTION 'no authenticated caller (did you call with service role?)';
+  END IF;
+
   IF new_status NOT IN ('active', 'disabled') THEN
     RAISE EXCEPTION 'invalid status: %', new_status;
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM public.user_settings
-    WHERE user_id = caller_user_id
+    WHERE user_id = caller
       AND role = 'super_admin'
       AND status = 'active'
   ) THEN
     RAISE EXCEPTION 'caller is not super_admin';
   END IF;
 
-  IF target_user_id = caller_user_id AND new_status = 'disabled' THEN
+  IF target_user_id = caller AND new_status = 'disabled' THEN
     RAISE EXCEPTION 'cannot disable self';
   END IF;
 
@@ -312,7 +329,7 @@ DO $$
 BEGIN
   PERFORM set_config('zapi.admin_bypass', 'yes', true);
   UPDATE public.user_settings
-  SET role = 'super_admin'
+  SET role = 'super_admin', updated_at = now()
   WHERE user_id = (SELECT id FROM auth.users WHERE email = 'andre@anf.com.br');
 END;
 $$;

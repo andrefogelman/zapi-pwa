@@ -15,7 +15,7 @@ export const OnAudioEventSchema = z.object({
   is_group: z.boolean(),
   audio_url: z.string().url(),
   audio_duration_seconds: z.number().int().nonnegative(),
-  timestamp: z.string().datetime(),
+  timestamp: z.string().datetime({ offset: true }),
 });
 
 export type OnAudioEvent = z.infer<typeof OnAudioEventSchema>;
