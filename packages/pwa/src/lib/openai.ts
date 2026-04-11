@@ -7,15 +7,28 @@ function getOpenAI() {
   return _openai;
 }
 
-export async function transcribeAudio(audioBuffer: ArrayBuffer): Promise<string> {
-  const blob = new Blob([audioBuffer], { type: "audio/ogg" });
-  const file = new File([blob], "audio.ogg", { type: "audio/ogg" });
+export interface TranscribeConfig {
+  model?: string;
+  prompt?: string;
+  temperature?: number;
+  language?: string;
+}
+
+export async function transcribeAudio(
+  audio: ArrayBuffer,
+  config: TranscribeConfig = {}
+): Promise<string> {
+  const file = new File([audio], "audio.ogg", { type: "audio/ogg" });
+
+  const model = config.model ?? "whisper-1";
 
   const response = await getOpenAI().audio.transcriptions.create({
-    model: "whisper-1",
     file,
+    model,
+    prompt: config.prompt,
+    temperature: config.temperature,
+    language: config.language ?? "pt",
   });
-
   return response.text;
 }
 
