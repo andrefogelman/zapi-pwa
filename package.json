@@ -7,7 +7,7 @@
     "dev": "bun --filter pwa dev",
     "build": "bun --filter pwa build",
     "lint": "bun --filter pwa lint",
-    "typecheck": "bun --filter pwa typecheck",
+    "typecheck": "bun --filter '*' typecheck",
     "test:shared": "bun --filter zapi-shared test",
     "test:pwa": "bun --filter pwa test"
   }
