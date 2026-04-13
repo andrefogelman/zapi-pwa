@@ -1785,6 +1785,7 @@
   align-items: center;
   gap: 4px;
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 .wa-panel-action {
@@ -2004,6 +2005,13 @@
 
   .wa-back-btn {
     display: block;
+    padding: 4px 6px;
+  }
+
+  /* Smaller avatar in chat header on mobile to give space for action buttons */
+  .wa-panel-header .wa-avatar.sm {
+    width: 34px;
+    height: 34px;
   }
 
   .wa-messages {
@@ -2012,6 +2020,15 @@
 
   .wa-bubble {
     max-width: 85%;
+  }
+
+  .wa-panel-header {
+    padding: 10px 10px;
+    gap: 8px;
+  }
+
+  .wa-panel-actions {
+    gap: 2px;
   }
 
   .wa-panel-action {
