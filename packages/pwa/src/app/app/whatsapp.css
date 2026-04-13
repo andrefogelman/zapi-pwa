@@ -1988,4 +1988,14 @@
   .wa-bubble {
     max-width: 85%;
   }
+
+  .wa-panel-action {
+    width: 32px;
+    height: 32px;
+  }
+
+  .wa-panel-action svg {
+    width: 18px;
+    height: 18px;
+  }
 }
