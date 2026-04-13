@@ -11,9 +11,16 @@ export function ChatItem({ chat, selected, onClick }: Props) {
   const displayName = formatChatName(chat.jid, chat.name);
   const initials = getInitials(displayName);
   const bgColor = avatarColor(chat.jid);
+  const hasUnread = chat.msgCount > 0;
+
+  const classes = [
+    "wa-chat-item",
+    selected && "active",
+    hasUnread && "has-unread",
+  ].filter(Boolean).join(" ");
 
   return (
-    <div className={`wa-chat-item ${selected ? "active" : ""}`} onClick={onClick}>
+    <div className={classes} onClick={onClick}>
       <div className={`wa-avatar ${chat.isGroup ? "group" : ""}`}>
         {chat.profilePicUrl ? (
           <img src={chat.profilePicUrl} alt="" />
@@ -31,9 +38,9 @@ export function ChatItem({ chat, selected, onClick }: Props) {
         <div className="wa-chat-row">
           <span className="wa-chat-preview">
             {chat.lastSender && chat.isGroup ? `${chat.lastSender}: ` : ""}
-            {chat.lastMessage || ""}
+            {chat.lastMessage || "\u00A0"}
           </span>
-          {chat.msgCount > 0 && (
+          {hasUnread && (
             <span className="wa-chat-count">{chat.msgCount}</span>
           )}
         </div>

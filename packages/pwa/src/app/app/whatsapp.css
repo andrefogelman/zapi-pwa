@@ -84,7 +84,7 @@
 /* ===== Search Bar ===== */
 
 .wa-search-bar {
-  padding: 8px 12px;
+  padding: 7px 12px;
   background: #111b21;
 }
 
@@ -123,13 +123,14 @@
 .wa-tabs {
   display: flex;
   flex-direction: row;
-  border-bottom: 1px solid #313d45;
+  gap: 2px;
+  padding: 0 12px 6px;
   background: #111b21;
 }
 
 .wa-tab {
   flex: 1;
-  padding: 14px 16px;
+  padding: 8px 12px;
   border: none;
   background: transparent;
   color: #8696a0;
@@ -137,23 +138,25 @@
   font-weight: 400;
   cursor: pointer;
   text-align: center;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
+  border-radius: 20px;
+  transition: color 0.15s, background 0.15s;
 }
 
 .wa-tab:hover {
   color: #e9edef;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .wa-tab.active {
-  color: #00a884;
-  border-bottom: 2px solid #00a884;
+  color: #e9edef;
+  background: #00a884;
+  font-weight: 500;
 }
 
 .wa-tab-count {
   display: inline-block;
-  background: #00a884;
-  color: #111b21;
+  background: rgba(255, 255, 255, 0.2);
+  color: #8696a0;
   font-size: 11px;
   font-weight: 600;
   border-radius: 10px;
@@ -164,6 +167,11 @@
   padding: 0 5px;
   margin-left: 6px;
   vertical-align: middle;
+}
+
+.wa-tab.active .wa-tab-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
 }
 
 /* ===== Chat List ===== */
@@ -178,9 +186,9 @@
   flex-direction: row;
   align-items: center;
   height: 72px;
-  padding: 12px 16px;
+  padding: 0 12px 0 15px;
   cursor: pointer;
-  gap: 12px;
+  gap: 15px;
   transition: background 0.15s;
   text-decoration: none;
   color: inherit;
@@ -192,6 +200,12 @@
 
 .wa-chat-item.active {
   background: #2a3942;
+}
+
+/* WhatsApp-style bottom border inside the text area (not full width) */
+.wa-chat-item .wa-chat-body {
+  border-bottom: 1px solid rgba(134, 150, 160, 0.15);
+  padding: 13px 0;
 }
 
 /* ===== Avatar ===== */
@@ -232,11 +246,15 @@
 .wa-chat-row {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
+}
+
+.wa-chat-row:first-child {
+  margin-bottom: 3px;
 }
 
 .wa-chat-name {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 400;
   color: #e9edef;
   overflow: hidden;
@@ -248,16 +266,22 @@
   font-size: 12px;
   color: #8696a0;
   flex-shrink: 0;
-  margin-left: 8px;
+  margin-left: 6px;
+}
+
+/* Time turns green when there are unread messages */
+.wa-chat-item.has-unread .wa-chat-time {
+  color: #00a884;
 }
 
 .wa-chat-preview {
-  font-size: 13px;
+  font-size: 14px;
   color: #8696a0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-top: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .wa-chat-count {
@@ -266,13 +290,14 @@
   justify-content: center;
   background: #00a884;
   color: #111b21;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   border-radius: 50%;
   min-width: 20px;
   height: 20px;
-  padding: 0 5px;
+  padding: 0 6px;
   flex-shrink: 0;
+  margin-left: 6px;
 }
 
 /* ===== Chat Panel ===== */
