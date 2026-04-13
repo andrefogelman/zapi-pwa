@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Chat } from "../hooks/useChats";
 import type { Message } from "../hooks/useMessages";
-import { formatChatName, generateAvatarUrl } from "../lib/formatters";
+import { formatChatName, getInitials, avatarColor } from "../lib/formatters";
 
 interface Props {
   open: boolean;
@@ -75,7 +75,6 @@ export function ForwardPickerModal({ open, onClose, message, chats, onSend }: Pr
           <div className="wa-contact-list">
             {filtered.slice(0, 50).map((c) => {
               const displayName = formatChatName(c.jid, c.name);
-              const avatarUrl = c.profilePicUrl || generateAvatarUrl(c.jid, c.isGroup);
               return (
                 <button
                   key={c.jid}
@@ -84,7 +83,13 @@ export function ForwardPickerModal({ open, onClose, message, chats, onSend }: Pr
                   disabled={sending}
                 >
                   <div className="wa-contact-list-avatar" style={{ padding: 0, overflow: "hidden" }}>
-                    <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    {c.profilePicUrl ? (
+                      <img src={c.profilePicUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      <span className="wa-avatar-initials" style={{ backgroundColor: avatarColor(c.jid), width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "14px", fontWeight: 500 }}>
+                        {getInitials(displayName)}
+                      </span>
+                    )}
                   </div>
                   <div className="wa-contact-list-info">
                     <div className="wa-contact-list-name">{displayName}</div>

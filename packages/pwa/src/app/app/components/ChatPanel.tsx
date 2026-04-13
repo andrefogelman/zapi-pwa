@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
 import { DaySeparator } from "./DaySeparator";
-import { formatChatName, formatDayLabel, generateAvatarUrl } from "../lib/formatters";
+import { formatChatName, formatDayLabel, getInitials, avatarColor } from "../lib/formatters";
 import type { Chat } from "../hooks/useChats";
 import type { Message, ReplyTarget } from "../hooks/useMessages";
 
@@ -85,10 +85,13 @@ export function ChatPanel({
           <svg viewBox="0 0 24 24" width="24" height="24" fill="#aebac1"><path d="M12 4l1.4 1.4L7.8 11H20v2H7.8l5.6 5.6L12 20l-8-8z"/></svg>
         </button>
         <div className={`wa-avatar sm ${chat.isGroup ? "group" : ""}`}>
-          <img
-            src={chat.profilePicUrl || generateAvatarUrl(chat.jid, chat.isGroup)}
-            alt=""
-          />
+          {chat.profilePicUrl ? (
+            <img src={chat.profilePicUrl} alt="" />
+          ) : (
+            <span className="wa-avatar-initials" style={{ backgroundColor: avatarColor(chat.jid) }}>
+              {getInitials(displayName)}
+            </span>
+          )}
         </div>
         <div className="wa-panel-header-info">
           <div className="wa-panel-header-name">{displayName}</div>

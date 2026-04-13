@@ -1,4 +1,4 @@
-import { formatChatName, formatChatTime, generateAvatarUrl } from "../lib/formatters";
+import { formatChatName, formatChatTime, getInitials, avatarColor } from "../lib/formatters";
 import type { Chat } from "../hooks/useChats";
 
 interface Props {
@@ -9,12 +9,19 @@ interface Props {
 
 export function ChatItem({ chat, selected, onClick }: Props) {
   const displayName = formatChatName(chat.jid, chat.name);
-  const avatarUrl = chat.profilePicUrl || generateAvatarUrl(chat.jid, chat.isGroup);
+  const initials = getInitials(displayName);
+  const bgColor = avatarColor(chat.jid);
 
   return (
     <div className={`wa-chat-item ${selected ? "active" : ""}`} onClick={onClick}>
       <div className={`wa-avatar ${chat.isGroup ? "group" : ""}`}>
-        <img src={avatarUrl} alt="" />
+        {chat.profilePicUrl ? (
+          <img src={chat.profilePicUrl} alt="" />
+        ) : (
+          <span className="wa-avatar-initials" style={{ backgroundColor: bgColor }}>
+            {initials}
+          </span>
+        )}
       </div>
       <div className="wa-chat-body">
         <div className="wa-chat-row">
@@ -26,7 +33,7 @@ export function ChatItem({ chat, selected, onClick }: Props) {
             {chat.lastSender && chat.isGroup ? `${chat.lastSender}: ` : ""}
             {chat.lastMessage || ""}
           </span>
-          {chat.msgCount > 0 && !chat.lastMessage && (
+          {chat.msgCount > 0 && (
             <span className="wa-chat-count">{chat.msgCount}</span>
           )}
         </div>

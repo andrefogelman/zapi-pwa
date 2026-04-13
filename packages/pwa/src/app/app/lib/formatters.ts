@@ -40,26 +40,34 @@ export function formatDayLabel(ts: number): string {
   return d.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }).toUpperCase();
 }
 
-export function getInitial(name: string): string {
+export function getInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+  }
   const clean = name.replace(/[^a-zA-ZÀ-ÿ0-9]/g, "");
   return clean.charAt(0).toUpperCase() || "?";
 }
 
-// DiceBear deterministic avatars. A JID always produces the same avatar,
-// giving contacts a consistent visual identity while wacli lacks real
-// profile pic support. Groups get a distinct style.
-export function generateAvatarUrl(jid: string, isGroup: boolean): string {
-  const seed = encodeURIComponent(jid);
-  const style = isGroup ? "shapes" : "initials";
-  return `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&backgroundColor=00a884,018a72,25d366,128c7e&radius=50`;
+// Deterministic color from JID for avatar backgrounds.
+const AVATAR_COLORS = [
+  "#00a884", "#018a72", "#25d366", "#128c7e",
+  "#7c3aed", "#2563eb", "#db2777", "#ea580c",
+  "#0891b2", "#4f46e5", "#059669", "#d97706",
+];
+
+export function avatarColor(jid: string): string {
+  let hash = 0;
+  for (let i = 0; i < jid.length; i++) hash = ((hash << 5) - hash + jid.charCodeAt(i)) | 0;
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
+
 
 export type ChatTab = "all" | "dms" | "groups" | "channels";
 export function getChatTab(kind: string, jid: string): ChatTab {
-  if (jid.includes("@newsletter") || jid === "status@broadcast") return "channels";
-  if (kind === "group") return "groups";
-  if (kind === "dm") return "dms";
+  if (kind === "channel" || jid.includes("@newsletter") || jid === "status@broadcast") return "channels";
+  if (kind === "group" || jid.includes("@g.us")) return "groups";
   if (jid.includes("@s.whatsapp.net") || jid.includes("@lid")) return "dms";
-  if (jid.includes("@g.us")) return "groups";
+  if (kind === "dm") return "dms";
   return "dms";
 }
