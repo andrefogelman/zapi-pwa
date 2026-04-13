@@ -1969,6 +1969,89 @@
 .wa-schedule-status.wa-status-failed { color: #ef4444; }
 .wa-schedule-status.wa-status-canceled { color: #8696a0; }
 
+/* In modal context the attach menu opens downward (not upward like in input bar) */
+.wa-schedule-attach-wrap .wa-attach-menu {
+  bottom: auto;
+  top: 40px;
+}
+
+/* Compose row in ScheduleMessageModal (attach button + textarea) */
+.wa-schedule-compose {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.wa-schedule-attach-wrap {
+  position: relative;
+  flex-shrink: 0;
+  padding-top: 6px;
+}
+
+.wa-schedule-compose .wa-modal-textarea {
+  flex: 1;
+  margin-top: 0;
+}
+
+/* Attached file preview card */
+.wa-schedule-file-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+}
+
+.wa-schedule-file-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.wa-schedule-file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.wa-schedule-file-name {
+  color: #e9edef;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wa-schedule-file-size {
+  color: #8696a0;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.wa-schedule-file-remove {
+  background: transparent;
+  border: none;
+  color: #8696a0;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.wa-schedule-file-remove:hover:not(:disabled) {
+  color: #f87171;
+}
+
+/* Badge in the scheduled list showing file attachment */
+.wa-schedule-attach-badge {
+  color: #8696a0;
+  font-size: 12px;
+}
+
 /* ===== Profile Photo in Avatar ===== */
 
 .wa-avatar img {

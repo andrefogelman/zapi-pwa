@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatMsgTime } from "../lib/formatters";
 import type { Message, ReplyTarget } from "../hooks/useMessages";
 import { AudioMessage } from "./AudioMessage";
 import { ImageMessage } from "./ImageMessage";
 import { ContactMessage } from "./ContactMessage";
 import { MessageContextMenu } from "./MessageContextMenu";
+
+const LONG_PRESS_MS = 600;
 
 interface Props {
   msg: Message;
@@ -43,6 +45,40 @@ function StatusTicks({ msg }: { msg: Message }) {
 export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onToggleStar, onDelete }: Props) {
   const time = formatMsgTime(msg.timestamp);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+
+  // Long-press for touch devices
+  const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchOrigin = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    return () => { if (touchTimer.current) clearTimeout(touchTimer.current); };
+  }, []);
+
+  function handleTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchOrigin.current = { x: t.clientX, y: t.clientY };
+    touchTimer.current = setTimeout(() => {
+      if (touchOrigin.current) setMenu(touchOrigin.current);
+    }, LONG_PRESS_MS);
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!touchOrigin.current || !touchTimer.current) return;
+    const t = e.touches[0];
+    const dx = Math.abs(t.clientX - touchOrigin.current.x);
+    const dy = Math.abs(t.clientY - touchOrigin.current.y);
+    if (dx > 10 || dy > 10) {
+      clearTimeout(touchTimer.current);
+      touchTimer.current = null;
+    }
+  }
+
+  function handleTouchEnd() {
+    if (touchTimer.current) {
+      clearTimeout(touchTimer.current);
+      touchTimer.current = null;
+    }
+  }
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
@@ -107,7 +143,14 @@ export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onTog
 
   return (
     <>
-      <div className={`wa-msg ${msg.fromMe ? "out" : "in"}`} onContextMenu={handleContextMenu}>
+      <div
+        className={`wa-msg ${msg.fromMe ? "out" : "in"}`}
+        onContextMenu={handleContextMenu}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+      >
         <div className="wa-bubble">
           {!msg.fromMe && isGroup && msg.senderName && (
             <div className="wa-msg-sender">{msg.senderName}</div>

@@ -9,9 +9,11 @@ interface Props {
   onPickDocument: () => void;
   onPickContact: () => void;
   onPickAIImage: () => void;
+  /** Hide Contact and AI Image options (e.g. in scheduled message modal) */
+  hideExtras?: boolean;
 }
 
-export function AttachMenu({ open, onClose, onPickPhoto, onPickDocument, onPickContact, onPickAIImage }: Props) {
+export function AttachMenu({ open, onClose, onPickPhoto, onPickDocument, onPickContact, onPickAIImage, hideExtras }: Props) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,18 +52,22 @@ export function AttachMenu({ open, onClose, onPickPhoto, onPickDocument, onPickC
         <span className="wa-attach-icon wa-attach-photo">🖼️</span>
         <span>Fotos e vídeos</span>
       </button>
-      <button className="wa-attach-item" onClick={pick(onPickContact)}>
-        <span className="wa-attach-icon wa-attach-contact">👤</span>
-        <span>Contato</span>
-      </button>
-      <button className="wa-attach-item" onClick={pick(onPickAIImage)}>
-        <span className="wa-attach-icon wa-attach-ai">✨</span>
-        <span>Imagem IA</span>
-      </button>
-      <button className="wa-attach-item disabled" disabled title="Em breve">
-        <span className="wa-attach-icon wa-attach-poll">📊</span>
-        <span>Enquete</span>
-      </button>
+      {!hideExtras && (
+        <>
+          <button className="wa-attach-item" onClick={pick(onPickContact)}>
+            <span className="wa-attach-icon wa-attach-contact">👤</span>
+            <span>Contato</span>
+          </button>
+          <button className="wa-attach-item" onClick={pick(onPickAIImage)}>
+            <span className="wa-attach-icon wa-attach-ai">✨</span>
+            <span>Imagem IA</span>
+          </button>
+          <button className="wa-attach-item disabled" disabled title="Em breve">
+            <span className="wa-attach-icon wa-attach-poll">📊</span>
+            <span>Enquete</span>
+          </button>
+        </>
+      )}
     </div>
   );
 }
