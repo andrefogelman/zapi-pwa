@@ -1,6 +1,10 @@
 export function formatChatName(jid: string, name: string | null): string {
   if (name && name !== jid && !name.includes("@")) return name;
-  const phone = jid.split("@")[0];
+  const [local, server] = jid.split("@");
+  // LID JIDs are privacy-preserving WhatsApp identifiers — show as generic
+  // "Contato" since the large numeric LID is meaningless to the user.
+  if (server === "lid" || server === "hosted.lid") return "Contato";
+  const phone = local;
   if (/^\d{12,13}$/.test(phone) && phone.startsWith("55")) {
     const ddd = phone.slice(2, 4);
     const num = phone.slice(4);
