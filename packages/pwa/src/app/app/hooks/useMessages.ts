@@ -49,6 +49,9 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
   const [sending, setSending] = useState(false);
   const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
   const initialLoad = useRef(true);
+  // Incremented on each loadMessages call so stale async responses from a
+  // previous chat don't overwrite the current one.
+  const fetchVersionRef = useRef(0);
 
   // Rewrite relative mediaUrl ("media/:jid/:msgId") into a full proxy URL
   // with the user's access token so <audio>/<img> src can hit it directly.
@@ -79,10 +82,14 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
 
   const loadMessages = useCallback(async () => {
     if (!chatJid) return;
+    const version = ++fetchVersionRef.current;
+    setMessages([]);
     setLoading(true);
     setHasOlder(true);
     initialLoad.current = true;
     const data = await fetcher(`messages/${encodeURIComponent(chatJid)}?limit=80`);
+    // Discard response if the user has already switched to another chat.
+    if (version !== fetchVersionRef.current) return;
     if (Array.isArray(data)) setMessages(data.map(enrichMessage));
     setLoading(false);
   }, [chatJid, fetcher, enrichMessage]);
@@ -273,6 +280,10 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
   // so repeat calls are cheap.
   const inFlightTranscriptions = useRef<Set<string>>(new Set());
 
+  // Only react to changes in the number of messages (new arrivals or chat
+  // switch), not to transcription status updates — otherwise every completed
+  // transcription would re-trigger the effect and cause a cascade of GETs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!sessionId || !session?.access_token) return;
     const token = session.access_token;
@@ -364,7 +375,7 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
 
     run();
     return () => { cancelled = true; };
-  }, [messages, sessionId, session?.access_token]);
+  }, [messages.length, sessionId, session?.access_token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     messages, loading, loadingOlder, hasOlder, sending,

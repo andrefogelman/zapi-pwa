@@ -31,7 +31,6 @@ const TABS: { key: ChatTab; label: string }[] = [
   { key: "all", label: "Tudo" },
   { key: "dms", label: "Conversas" },
   { key: "groups", label: "Grupos" },
-  { key: "channels", label: "Canais" },
 ];
 
 export function Sidebar({

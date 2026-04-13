@@ -33,7 +33,11 @@ export function useChats(sessionId: string | null) {
     fetcher("chats").then((data) => {
       if (Array.isArray(data)) {
         const token = session?.access_token;
-        setAllChats(data.map((c: Record<string, unknown>) => {
+        const visible = (data as Record<string, unknown>[]).filter((c) => {
+          const jid = c.jid as string;
+          return !jid.includes("@newsletter") && jid !== "status@broadcast";
+        });
+        setAllChats(visible.map((c: Record<string, unknown>) => {
           const jid = c.jid as string;
           const hasAvatar = Boolean(c.hasAvatar);
           // Build authenticated URL to our avatar endpoint when one is cached
