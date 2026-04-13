@@ -57,6 +57,10 @@ export function SettingsModal({
   const [fetchedGroups, setFetchedGroups] = useState<FetchedGroup[]>([]);
   const [fetchingGroups, setFetchingGroups] = useState(false);
 
+  // Avatar refresh state
+  const [refreshingAvatars, setRefreshingAvatars] = useState<string | null>(null); // sessionId being refreshed
+  const [avatarRefreshMsg, setAvatarRefreshMsg] = useState<string | null>(null);
+
   const authHeaders = useCallback((): Record<string, string> => {
     const token = session?.access_token;
     const h: Record<string, string> = {};
@@ -252,6 +256,27 @@ export function SettingsModal({
     await onDelete(id);
   }
 
+  async function handleAvatarRefresh(sessionId: string) {
+    if (refreshingAvatars) return;
+    setRefreshingAvatars(sessionId);
+    setAvatarRefreshMsg(null);
+    try {
+      const res = await fetch(`/api/waclaw/sessions/${sessionId}/avatars/refresh`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const downloaded = data.downloaded ?? 0;
+      setAvatarRefreshMsg(`${downloaded} foto(s) atualizada(s). Recarregue a página para ver.`);
+    } catch (err) {
+      setAvatarRefreshMsg(`Erro: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setRefreshingAvatars(null);
+      setTimeout(() => setAvatarRefreshMsg(null), 8000);
+    }
+  }
+
   async function handleReconnect(inst: Instance) {
     if (!inst.waclaw_session_id) return;
     setBusy(true);
@@ -350,6 +375,16 @@ export function SettingsModal({
                     </div>
                   </div>
                   <div className="wa-settings-actions">
+                    {inst.provider === "waclaw" && inst.waclaw_session_id && (
+                      <button
+                        className="wa-settings-btn"
+                        onClick={() => handleAvatarRefresh(inst.waclaw_session_id!)}
+                        disabled={refreshingAvatars === inst.waclaw_session_id}
+                        title="Baixar fotos de perfil do WhatsApp"
+                      >
+                        {refreshingAvatars === inst.waclaw_session_id ? "Baixando..." : "📷 Fotos"}
+                      </button>
+                    )}
                     {inst.provider === "waclaw" && (
                       <button
                         className="wa-settings-btn"
@@ -368,6 +403,21 @@ export function SettingsModal({
                   </div>
                 </div>
               ))}
+              {avatarRefreshMsg && (
+                <div
+                  style={{
+                    margin: "10px 0 4px",
+                    padding: "8px 12px",
+                    background: "rgba(0, 168, 132, 0.1)",
+                    border: "1px solid rgba(0, 168, 132, 0.3)",
+                    borderRadius: 6,
+                    color: "#00a884",
+                    fontSize: 13,
+                  }}
+                >
+                  {avatarRefreshMsg}
+                </div>
+              )}
               {instances.length < 3 && (
                 <button
                   className="wa-modal-primary wa-settings-add"

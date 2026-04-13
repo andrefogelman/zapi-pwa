@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { formatChatName, formatChatTime, getInitials, avatarColor } from "../lib/formatters";
 import type { Chat } from "../hooks/useChats";
 
@@ -8,22 +9,23 @@ interface Props {
 }
 
 export function ChatItem({ chat, selected, onClick }: Props) {
+  const [imgError, setImgError] = useState(false);
   const displayName = formatChatName(chat.jid, chat.name);
   const initials = getInitials(displayName);
   const bgColor = avatarColor(chat.jid);
-  const hasUnread = chat.msgCount > 0;
+  const hasAvatar = chat.profilePicUrl && !imgError;
 
   const classes = [
     "wa-chat-item",
     selected && "active",
-    hasUnread && "has-unread",
+    chat.isUnread && "has-unread",
   ].filter(Boolean).join(" ");
 
   return (
     <div className={classes} onClick={onClick}>
       <div className={`wa-avatar ${chat.isGroup ? "group" : ""}`}>
-        {chat.profilePicUrl ? (
-          <img src={chat.profilePicUrl} alt="" />
+        {hasAvatar ? (
+          <img src={chat.profilePicUrl!} alt="" onError={() => setImgError(true)} />
         ) : (
           <span className="wa-avatar-initials" style={{ backgroundColor: bgColor }}>
             {initials}
@@ -40,8 +42,8 @@ export function ChatItem({ chat, selected, onClick }: Props) {
             {chat.lastSender && chat.isGroup ? `${chat.lastSender}: ` : ""}
             {chat.lastMessage || "\u00A0"}
           </span>
-          {hasUnread && (
-            <span className="wa-chat-count">{chat.msgCount}</span>
+          {chat.isUnread && (
+            <span className="wa-chat-unread-dot" />
           )}
         </div>
       </div>

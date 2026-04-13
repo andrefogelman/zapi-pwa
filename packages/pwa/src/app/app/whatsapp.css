@@ -300,6 +300,16 @@
   margin-left: 6px;
 }
 
+/* Simple unread indicator — replaces the incorrect msgCount badge */
+.wa-chat-unread-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #00a884;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+
 /* ===== Chat Panel ===== */
 
 .wa-chat-panel {

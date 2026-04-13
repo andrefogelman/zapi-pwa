@@ -38,7 +38,7 @@ export default function AppMain() {
   );
   const sessionId = activeInstance?.waclaw_session_id || null;
 
-  const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts } = useChats(sessionId);
+  const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, markAsRead } = useChats(sessionId);
   const { fetcher } = useWaclaw(sessionId);
 
   async function handleReact(msg: Message, emoji: string) {
@@ -139,6 +139,7 @@ export default function AppMain() {
   function handleSelectChat(chat: Chat) {
     setSelectedChat(chat);
     setReplyTarget(null);
+    markAsRead(chat.jid);
   }
 
   // First-run experience: user has no instances yet — show QR wizard full-screen
