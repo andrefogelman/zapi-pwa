@@ -169,6 +169,7 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
       starred: false,
     }]);
 
+    let realMsgId: string | null = null;
     try {
       const dataBase64 = await fileToBase64(file);
       const result = await fetcher("send-file", {
@@ -184,6 +185,7 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
       if (!result || result.error || result.ok === false) {
         throw new Error(result?.error || "Send failed");
       }
+      if (typeof result.id === "string" && result.id) realMsgId = result.id;
     } catch (err) {
       // Roll back the optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== localId));
@@ -192,16 +194,22 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
     }
 
     // For audio, transcribe the local bytes in background and splice the
-    // result into the optimistic message. Without this, sent voice notes
-    // show no transcription until a page reload fetches the confirmed
-    // message from waclaw (which has a real msgId the regular pipeline
-    // can transcribe via /api/transcribe).
+    // result into the optimistic message. Pass the real waclaw msgId so
+    // the server can persist to waclaw_transcriptions — on reload or from
+    // another device the confirmed audio message will hydrate its
+    // transcription from the cache.
     if (msgType === "audio" && session?.access_token) {
       const token = session.access_token;
+      const persistMsgId = realMsgId;
+      const persistSessionId = sessionId;
       (async () => {
         try {
           const fd = new FormData();
           fd.append("audio", file);
+          if (persistSessionId && persistMsgId) {
+            fd.append("sessionId", persistSessionId);
+            fd.append("msgId", persistMsgId);
+          }
           const res = await fetch("/api/transcribe-raw", {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
@@ -229,7 +237,7 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
 
     setReplyTarget(null);
     setSending(false);
-  }, [chatJid, fetcher, sending, session?.access_token]);
+  }, [chatJid, fetcher, sending, session?.access_token, sessionId]);
 
   // --- Starred messages hydration ---
   // On sessionId change, fetch the user's stars for this session and
