@@ -3,6 +3,8 @@ import { formatMsgTime } from "../lib/formatters";
 import type { Message, ReplyTarget } from "../hooks/useMessages";
 import { AudioMessage } from "./AudioMessage";
 import { ImageMessage } from "./ImageMessage";
+import { VideoMessage } from "./VideoMessage";
+import { DocumentMessage } from "./DocumentMessage";
 import { ContactMessage } from "./ContactMessage";
 import { MessageContextMenu } from "./MessageContextMenu";
 
@@ -117,17 +119,19 @@ export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onTog
         );
       case "video":
         return (
-          <div className="wa-msg-media">
-            <span className="wa-msg-media-icon">🎬</span>
-            <span>{msg.mediaCaption || "Vídeo"}</span>
-          </div>
+          <VideoMessage
+            videoUrl={msg.mediaUrl}
+            caption={msg.mediaCaption}
+            mimeType={msg.mimeType}
+          />
         );
       case "document":
         return (
-          <div className="wa-msg-media">
-            <span className="wa-msg-media-icon">📄</span>
-            <span>{msg.filename || "Documento"}</span>
-          </div>
+          <DocumentMessage
+            documentUrl={msg.mediaUrl}
+            filename={msg.filename}
+            mimeType={msg.mimeType}
+          />
         );
       case "sticker":
         return (
