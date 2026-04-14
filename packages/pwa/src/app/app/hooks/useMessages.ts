@@ -164,7 +164,7 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
       filename: file.name,
       mimeType: mime,
       transcription: null,
-      transcriptionStatus: null,
+      transcriptionStatus: msgType === "audio" ? "processing" : null,
       contact: null,
       starred: false,
     }]);
@@ -191,9 +191,45 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
       throw err;
     }
 
+    // For audio, transcribe the local bytes in background and splice the
+    // result into the optimistic message. Without this, sent voice notes
+    // show no transcription until a page reload fetches the confirmed
+    // message from waclaw (which has a real msgId the regular pipeline
+    // can transcribe via /api/transcribe).
+    if (msgType === "audio" && session?.access_token) {
+      const token = session.access_token;
+      (async () => {
+        try {
+          const fd = new FormData();
+          fd.append("audio", file);
+          const res = await fetch("/api/transcribe-raw", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          if (!data?.text) throw new Error("no text returned");
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === localId
+                ? { ...m, transcription: data.text, transcriptionStatus: "completed" }
+                : m
+            )
+          );
+        } catch {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === localId ? { ...m, transcriptionStatus: "failed" } : m
+            )
+          );
+        }
+      })();
+    }
+
     setReplyTarget(null);
     setSending(false);
-  }, [chatJid, fetcher, sending]);
+  }, [chatJid, fetcher, sending, session?.access_token]);
 
   // --- Starred messages hydration ---
   // On sessionId change, fetch the user's stars for this session and
