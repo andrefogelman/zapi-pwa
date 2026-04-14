@@ -1,0 +1,25 @@
+# Build artifacts
+/bin/
+/dist/
+/waclaw-go
+/waclaw-go.exe
+
+# Test artifacts
+*.test
+*.out
+coverage.*
+
+# Env files
+.env
+.env.local
+
+# macOS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Runtime state (never commit session stores)
+/sessions/
+*.db
+*.db-wal
+*.db-shm

@@ -1,0 +1,24 @@
+[Unit]
+Description=waclaw-go - Multi-tenant WhatsApp gateway (Go)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=orcabot
+Group=orcabot
+WorkingDirectory=/home/orcabot/waclaw-go
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/home/orcabot/waclaw-go/.env
+ExecStart=/home/orcabot/waclaw-go/bin/waclaw-go
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Resource hygiene
+LimitNOFILE=8192
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
