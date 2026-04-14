@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -18,9 +19,14 @@ func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Run Connect in a goroutine — it may block briefly on network I/O.
+	// Run Connect in a detached context. r.Context() is canceled as soon
+	// as this handler writes its response (either once the QR is ready or
+	// on timeout), which would abort whatsmeow sqlstore initialization
+	// mid-flight with "context canceled" and leave the session broken.
+	// Connect must outlive the request.
+	connectCtx := context.Background()
 	go func() {
-		if err := sess.Connect(r.Context()); err != nil {
+		if err := sess.Connect(connectCtx); err != nil {
 			s.deps.Log.Warn().Err(err).Str("session", id).Msg("connect error")
 		}
 	}()
