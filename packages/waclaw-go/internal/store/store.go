@@ -67,20 +67,25 @@ func (s *Store) DSN() string {
 }
 
 func (s *Store) migrate() error {
-	// 0002: chats trigger + backfill
-	if _, err := s.db.Exec(migration0002); err != nil {
-		return err
-	}
-	if _, err := s.db.Exec("INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (2, '0002_chats_trigger', strftime('%s','now'))"); err != nil {
-		return err
-	}
+	// 0001 MUST run before 0002: 0002 defines a trigger on the messages
+	// table and backfills chats from messages, both of which require 0001
+	// to have created the messages table first.
 	if _, err := s.db.Exec(migration0001); err != nil {
 		return err
 	}
-	// Record that 0001 was applied. Idempotent via INSERT OR IGNORE.
-	_, err := s.db.Exec(
+	if _, err := s.db.Exec(
 		`INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, strftime('%s','now'))`,
 		1, "0001_initial",
+	); err != nil {
+		return err
+	}
+
+	if _, err := s.db.Exec(migration0002); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(
+		`INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, strftime('%s','now'))`,
+		2, "0002_chats_trigger",
 	)
 	return err
 }
