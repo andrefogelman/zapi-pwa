@@ -1706,6 +1706,15 @@
   background: #2a3942;
   border-radius: 24px;
   height: 40px;
+  min-width: 0;
+}
+
+/* When recording, the voice bar replaces the text input + attach button
+   entirely — otherwise they all fight for horizontal space and the send
+   button gets pushed off-screen on mobile. */
+.wa-input-row:has(.wa-voice-bar) .wa-input,
+.wa-input-row:has(.wa-voice-bar) .wa-attach-wrap {
+  display: none;
 }
 
 .wa-voice-cancel {
