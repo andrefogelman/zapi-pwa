@@ -106,12 +106,14 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
     setLoadingOlder(false);
   }, [chatJid, fetcher, loadingOlder, hasOlder, messages, enrichMessage]);
 
-  const sendMessage = useCallback(async (text: string) => {
+  const sendMessage = useCallback(async (text: string, quote?: ReplyTarget | null) => {
     if (!chatJid || !text.trim() || sending) return;
     setSending(true);
+    const payload: Record<string, string> = { to: chatJid, message: text };
+    if (quote?.id) payload.quotedMsgId = quote.id;
     await fetcher("send", {
       method: "POST",
-      body: JSON.stringify({ to: chatJid, message: text }),
+      body: JSON.stringify(payload),
     });
     setMessages((prev) => [...prev, {
       id: `local-${Date.now()}`,

@@ -206,7 +206,7 @@ export default function AppMain() {
             sending={sending}
             replyTarget={replyTarget}
             onLoadOlder={loadOlder}
-            onSend={sendMessage}
+            onSend={(text, quote) => sendMessage(text, quote)}
             onSendFile={sendFile}
             onReply={setReplyTarget}
             onForward={setForwardTarget}

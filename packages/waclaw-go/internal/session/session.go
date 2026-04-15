@@ -118,8 +118,9 @@ func (s *Session) Store() *store.Store {
 var errClosed = errors.New("session is closed")
 
 // SendText sends a plain-text WhatsApp message to the given JID string.
+// If quotedMsgID is non-empty the message is sent as a reply (quote).
 // Returns the server-assigned message ID on success.
-func (s *Session) SendText(ctx context.Context, to, text string) (string, error) {
+func (s *Session) SendText(ctx context.Context, to, text, quotedMsgID string) (string, error) {
 	if err := s.ensureOpen(); err != nil {
 		return "", err
 	}
@@ -127,9 +128,24 @@ func (s *Session) SendText(ctx context.Context, to, text string) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("invalid JID %q: %w", to, err)
 	}
-	resp, err := s.client.SendMessage(ctx, jid, &waE2E.Message{
-		Conversation: ptrString(text),
-	})
+
+	var msg *waE2E.Message
+	if quotedMsgID != "" {
+		msg = &waE2E.Message{
+			ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+				Text: ptrString(text),
+				ContextInfo: &waE2E.ContextInfo{
+					StanzaID: ptrString(quotedMsgID),
+				},
+			},
+		}
+	} else {
+		msg = &waE2E.Message{
+			Conversation: ptrString(text),
+		}
+	}
+
+	resp, err := s.client.SendMessage(ctx, jid, msg)
 	if err != nil {
 		return "", err
 	}

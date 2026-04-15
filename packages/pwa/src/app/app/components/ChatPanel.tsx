@@ -15,7 +15,7 @@ interface Props {
   sending: boolean;
   replyTarget: ReplyTarget | null;
   onLoadOlder: () => void;
-  onSend: (text: string) => void;
+  onSend: (text: string, quote?: ReplyTarget | null) => void;
   onSendFile: (file: File, caption?: string) => Promise<void>;
   onReply: (target: ReplyTarget) => void;
   onForward: (msg: Message) => void;
@@ -60,7 +60,7 @@ export function ChatPanel({
 
   function handleSend() {
     if (!input.trim()) return;
-    onSend(input);
+    onSend(input, replyTarget);
     setInput("");
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   }

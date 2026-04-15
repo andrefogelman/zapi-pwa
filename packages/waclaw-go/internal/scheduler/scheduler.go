@@ -142,7 +142,7 @@ func (s *Scheduler) process(ctx context.Context, msg scheduledMessage) {
 	}
 
 	// Send
-	if _, err := sess.SendText(ctx, msg.ChatJID, msg.Text); err != nil {
+	if _, err := sess.SendText(ctx, msg.ChatJID, msg.Text, ""); err != nil {
 		log.Error().Err(err).Msg("send failed")
 		s.updateFailed(ctx, msg.ID, err.Error())
 		return

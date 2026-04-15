@@ -20,8 +20,9 @@ func (s *Server) handleSendText(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		To      string `json:"to"`
-		Message string `json:"message"`
+		To           string `json:"to"`
+		Message      string `json:"message"`
+		QuotedMsgID  string `json:"quotedMsgId,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.writeError(w, http.StatusBadRequest, "invalid JSON body")
@@ -32,7 +33,7 @@ func (s *Server) handleSendText(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msgID, err := sess.SendText(r.Context(), body.To, body.Message)
+	msgID, err := sess.SendText(r.Context(), body.To, body.Message, body.QuotedMsgID)
 	if err != nil {
 		s.writeError(w, http.StatusBadGateway, "send: "+err.Error())
 		return
