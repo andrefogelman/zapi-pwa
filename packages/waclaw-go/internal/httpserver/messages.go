@@ -40,8 +40,12 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 	if v := q.Get("before"); v != "" {
 		before, _ = strconv.ParseInt(v, 10, 64)
 	}
+	var after int64
+	if v := q.Get("after"); v != "" {
+		after, _ = strconv.ParseInt(v, 10, 64)
+	}
 
-	msgs, err := st.GetMessagesByChat(jid, limit, before)
+	msgs, err := st.GetMessagesByChat(jid, limit, before, after)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "get messages: "+err.Error())
 		return

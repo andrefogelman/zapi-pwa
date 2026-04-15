@@ -57,7 +57,7 @@ func TestGetMessagesByChat_OrderAndPagination(t *testing.T) {
 	}
 
 	// Default: latest 50, chronological ASC in the result.
-	msgs, err := s.GetMessagesByChat("a@s.whatsapp.net", 50, 0)
+	msgs, err := s.GetMessagesByChat("a@s.whatsapp.net", 50, 0, 0)
 	if err != nil {
 		t.Fatalf("GetMessagesByChat: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestGetMessagesByChat_BeforeCursor(t *testing.T) {
 	}
 
 	// Ask for messages before ts=300. Should return ts=100 and ts=200 only.
-	msgs, err := s.GetMessagesByChat("a@s.whatsapp.net", 50, 300)
+	msgs, err := s.GetMessagesByChat("a@s.whatsapp.net", 50, 300, 0)
 	if err != nil {
 		t.Fatalf("GetMessagesByChat: %v", err)
 	}

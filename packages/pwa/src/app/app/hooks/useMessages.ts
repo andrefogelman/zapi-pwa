@@ -423,6 +423,51 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
     return () => { cancelled = true; };
   }, [messages.length, sessionId, session?.access_token]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // --- Poll for new messages every 3s ---
+  // Uses after=latestTs to fetch only messages newer than what we have.
+  // Deduplicates by msg id and reconciles optimistic local-* messages.
+  useEffect(() => {
+    if (!chatJid || loading) return;
+    const POLL_MS = 3000;
+    const id = setInterval(async () => {
+      // Find the latest real (non-optimistic) timestamp
+      let latestTs = 0;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i];
+        if (!m.id.startsWith("local-")) {
+          latestTs = Math.floor(m.timestamp);
+          break;
+        }
+      }
+      if (latestTs === 0) return;
+
+      const data = await fetcher(
+        `messages/${encodeURIComponent(chatJid)}?limit=50&after=${latestTs}`
+      );
+      if (!Array.isArray(data) || data.length === 0) return;
+
+      setMessages((prev) => {
+        const existingIds = new Set(prev.map((m) => m.id));
+        const newMsgs = data
+          .map(enrichMessage)
+          .filter((m: Message) => !existingIds.has(m.id));
+        if (newMsgs.length === 0) return prev;
+
+        // Remove optimistic local-* messages that the server now confirms
+        const cleaned = prev.filter((m) => {
+          if (!m.id.startsWith("local-")) return true;
+          // If a server msg arrived from us with close timestamp, replace
+          return !newMsgs.some(
+            (n: Message) => n.fromMe && Math.abs(n.timestamp - m.timestamp) < 5
+          );
+        });
+
+        return [...cleaned, ...newMsgs];
+      });
+    }, POLL_MS);
+    return () => clearInterval(id);
+  }, [chatJid, loading, messages, fetcher, enrichMessage]);
+
   return {
     messages, loading, loadingOlder, hasOlder, sending,
     loadMessages, loadOlder, sendMessage, sendFile, toggleStar,

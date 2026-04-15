@@ -56,16 +56,24 @@ func (s *Store) InsertMessage(m Message) error {
 // behavior which SELECTs ORDER BY ts DESC then reverses the slice.
 //
 // If beforeTs > 0, only returns messages with ts < beforeTs (pagination cursor).
-func (s *Store) GetMessagesByChat(chatJID string, limit int, beforeTs int64) ([]Message, error) {
+// If afterTs > 0, only returns messages with ts > afterTs (new-message polling).
+func (s *Store) GetMessagesByChat(chatJID string, limit int, beforeTs, afterTs int64) ([]Message, error) {
 	var rows *sql.Rows
 	var err error
-	if beforeTs > 0 {
+	switch {
+	case afterTs > 0:
+		rows, err = s.db.Query(`
+			SELECT `+messageCols+` FROM messages
+			WHERE chat_jid = ? AND ts > ?
+			ORDER BY ts ASC LIMIT ?`,
+			chatJID, afterTs, limit)
+	case beforeTs > 0:
 		rows, err = s.db.Query(`
 			SELECT `+messageCols+` FROM messages
 			WHERE chat_jid = ? AND ts < ?
 			ORDER BY ts DESC LIMIT ?`,
 			chatJID, beforeTs, limit)
-	} else {
+	default:
 		rows, err = s.db.Query(`
 			SELECT `+messageCols+` FROM messages
 			WHERE chat_jid = ?
@@ -89,9 +97,11 @@ func (s *Store) GetMessagesByChat(chatJID string, limit int, beforeTs int64) ([]
 		return nil, err
 	}
 
-	// Reverse to chronological ASC.
-	for i, j := 0, len(collected)-1; i < j; i, j = i+1, j-1 {
-		collected[i], collected[j] = collected[j], collected[i]
+	// afterTs results are already ASC; before/default need reversal.
+	if afterTs == 0 {
+		for i, j := 0, len(collected)-1; i < j; i, j = i+1, j-1 {
+			collected[i], collected[j] = collected[j], collected[i]
+		}
 	}
 	return collected, nil
 }

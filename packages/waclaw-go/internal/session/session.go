@@ -277,7 +277,7 @@ func (s *Session) RequestHistoryBackfill(ctx context.Context, chatJID string, co
 	if err := s.ensureOpen(); err != nil {
 		return err
 	}
-	msgs, err := s.store.GetMessagesByChat(chatJID, 1, 0)
+	msgs, err := s.store.GetMessagesByChat(chatJID, 1, 0, 0)
 	if err != nil {
 		return fmt.Errorf("store lookup: %w", err)
 	}
