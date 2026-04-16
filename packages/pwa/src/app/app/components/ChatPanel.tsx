@@ -26,6 +26,9 @@ interface Props {
   onBack: () => void;
   onOpenSummary: () => void;
   onOpenSchedule: () => void;
+  onLinkToTask: () => void;
+  onLinkMsgToTask: (msg: Message) => void;
+  taskCount: number;
   initialLoad: React.MutableRefObject<boolean>;
 }
 
@@ -33,7 +36,7 @@ export function ChatPanel({
   chat, messages, loading, loadingOlder, hasOlder, sending,
   replyTarget, onLoadOlder, onSend, onSendFile, onReply, onForward,
   onReact, onToggleStar, onDelete,
-  onCancelReply, onBack, onOpenSummary, onOpenSchedule, initialLoad,
+  onCancelReply, onBack, onOpenSummary, onOpenSchedule, onLinkToTask, onLinkMsgToTask, taskCount, initialLoad,
 }: Props) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -102,6 +105,27 @@ export function ChatPanel({
         <div className="wa-panel-actions">
           <button
             className="wa-panel-action"
+            onClick={onLinkToTask}
+            title="Vincular a tarefa"
+            style={{ position: "relative" }}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
+            </svg>
+            {taskCount > 0 && (
+              <span style={{
+                position: "absolute", top: -2, right: -2,
+                background: "#00a884", color: "#111b21",
+                fontSize: 9, fontWeight: 700,
+                width: 16, height: 16, borderRadius: "50%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                {taskCount}
+              </span>
+            )}
+          </button>
+          <button
+            className="wa-panel-action"
             onClick={onOpenSummary}
             title="Resumir conversa"
           >
@@ -137,6 +161,7 @@ export function ChatPanel({
                 onReact={onReact}
                 onToggleStar={onToggleStar}
                 onDelete={onDelete}
+                onLinkToTask={onLinkMsgToTask}
               />
             ))}
           </div>

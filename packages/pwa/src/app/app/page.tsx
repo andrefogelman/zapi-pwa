@@ -18,6 +18,7 @@ import { useTasks, useTaskDetail, type Task } from "./hooks/useTasks";
 import { TaskListPanel } from "./components/TaskListPanel";
 import { TaskCreateModal } from "./components/TaskCreateModal";
 import { TaskDetailModal } from "./components/TaskDetailModal";
+import { TaskPickerModal } from "./components/TaskPickerModal";
 
 export default function AppMain() {
   const { session, signOut } = useAuth();
@@ -31,12 +32,66 @@ export default function AppMain() {
   const [tasksMode, setTasksMode] = useState(false);
   const [taskCreateOpen, setTaskCreateOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [linkChatPickerOpen, setLinkChatPickerOpen] = useState(false);
+  const [linkMsgPickerOpen, setLinkMsgPickerOpen] = useState<Message | null>(null);
 
-  const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask } = useTasks();
+  const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask, loadTasks } = useTasks();
   const {
     task: taskDetail, comments: taskComments, loading: taskDetailLoading,
-    addComment, removeParticipant, removeConversation, unpinMessage,
+    addComment, addConversation, removeParticipant, removeConversation, pinMessage, unpinMessage,
   } = useTaskDetail(selectedTask?.id || null);
+
+  // Count tasks linked to the current chat
+  const chatTaskCount = useMemo(() => {
+    if (!selectedChat) return 0;
+    return tasks.filter((t) =>
+      t.task_conversations?.some((c) => c.chat_jid === selectedChat.jid)
+    ).length;
+  }, [tasks, selectedChat]);
+
+  async function handleLinkChatToTask(task: Task) {
+    if (!selectedChat || !activeInstanceId) return;
+    // Temporarily select this task to use addConversation
+    const prevSelected = selectedTask;
+    setSelectedTask(task);
+    // Use fetch directly since addConversation needs the taskId set
+    const token = session?.access_token;
+    if (!token) return;
+    await fetch(`/api/tasks/${task.id}/conversations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        instance_id: activeInstanceId,
+        chat_jid: selectedChat.jid,
+        chat_name: selectedChat.name,
+      }),
+    });
+    setSelectedTask(prevSelected);
+    setLinkChatPickerOpen(false);
+    loadTasks();
+  }
+
+  async function handleLinkMsgToTask(task: Task) {
+    if (!linkMsgPickerOpen || !activeInstanceId || !sessionId) return;
+    const msg = linkMsgPickerOpen;
+    const token = session?.access_token;
+    if (!token) return;
+    await fetch(`/api/tasks/${task.id}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        instance_id: activeInstanceId,
+        chat_jid: msg.chatJid,
+        waclaw_msg_id: msg.id,
+        waclaw_session_id: sessionId,
+        snippet: (msg.text || msg.mediaCaption || "").slice(0, 200),
+        sender_name: msg.senderName || (msg.fromMe ? "Você" : null),
+        message_ts: new Date(msg.timestamp * 1000).toISOString(),
+      }),
+    });
+    setLinkMsgPickerOpen(null);
+    loadTasks();
+  }
 
   // Auto-select the first waclaw-enabled instance once the list loads
   useEffect(() => {
@@ -238,6 +293,9 @@ export default function AppMain() {
             onBack={() => setSelectedChat(null)}
             onOpenSummary={() => setSummaryOpen(true)}
             onOpenSchedule={() => setScheduleOpen(true)}
+            onLinkToTask={() => setLinkChatPickerOpen(true)}
+            onLinkMsgToTask={(msg) => setLinkMsgPickerOpen(msg)}
+            taskCount={chatTaskCount}
             initialLoad={initialLoad}
           />
         )}
@@ -296,6 +354,30 @@ export default function AppMain() {
         onRemoveParticipant={removeParticipant}
         onRemoveConversation={removeConversation}
         onUnpinMessage={unpinMessage}
+        onNavigateToChat={(chatJid) => {
+          const chat = chats.find((c) => c.jid === chatJid);
+          if (chat) {
+            setSelectedChat(chat);
+            setTasksMode(false);
+            setSelectedTask(null);
+          }
+        }}
+      />
+
+      <TaskPickerModal
+        open={linkChatPickerOpen}
+        title="Vincular conversa a tarefa"
+        tasks={tasks}
+        onSelect={handleLinkChatToTask}
+        onClose={() => setLinkChatPickerOpen(false)}
+      />
+
+      <TaskPickerModal
+        open={!!linkMsgPickerOpen}
+        title="Fixar mensagem em tarefa"
+        tasks={tasks}
+        onSelect={handleLinkMsgToTask}
+        onClose={() => setLinkMsgPickerOpen(null)}
       />
     </div>
   );

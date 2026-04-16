@@ -12,6 +12,7 @@ interface Props {
   onRemoveParticipant: (id: string) => void;
   onRemoveConversation: (id: string) => void;
   onUnpinMessage: (id: string) => void;
+  onNavigateToChat: (chatJid: string) => void;
 }
 
 function formatTs(iso: string | null) {
@@ -25,7 +26,7 @@ const STATUS_FLOW = ["open", "in_progress", "resolved", "closed"];
 export function TaskDetailModal({
   task, comments, loading, onClose,
   onUpdateStatus, onAddComment,
-  onRemoveParticipant, onRemoveConversation, onUnpinMessage,
+  onRemoveParticipant, onRemoveConversation, onUnpinMessage, onNavigateToChat,
 }: Props) {
   const [commentInput, setCommentInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -220,7 +221,13 @@ export function TaskDetailModal({
                 </div>
                 {conversations.map((c) => (
                   <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }}>
-                    <span style={{ color: "#e9edef", fontSize: 13 }}>{c.chat_name || c.chat_jid}</span>
+                    <span
+                      style={{ color: "#53bdeb", fontSize: 13, cursor: "pointer", textDecoration: "underline", textDecorationColor: "rgba(83,189,235,0.3)" }}
+                      onClick={() => { onNavigateToChat(c.chat_jid); onClose(); }}
+                      title="Ir para conversa"
+                    >
+                      {c.chat_name || c.chat_jid}
+                    </span>
                     <button
                       onClick={() => onRemoveConversation(c.id)}
                       style={{ background: "transparent", border: "none", color: "#ef4444", fontSize: 12, cursor: "pointer" }}
