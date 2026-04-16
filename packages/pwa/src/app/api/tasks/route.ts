@@ -16,7 +16,24 @@ export async function GET(request: Request) {
 
   const supabase = getSupabaseServer();
 
-  // Tasks where user is creator OR participant
+  // Fetch task IDs the user can access (creator or participant)
+  const { data: ownedRows } = await supabase
+    .from("tasks")
+    .select("id")
+    .eq("creator_id", user.id);
+  const { data: participantRows } = await supabase
+    .from("task_participants")
+    .select("task_id")
+    .eq("user_id", user.id);
+
+  const taskIds = new Set<string>();
+  for (const r of ownedRows || []) taskIds.add(r.id);
+  for (const r of participantRows || []) taskIds.add(r.task_id);
+
+  if (taskIds.size === 0) {
+    return Response.json({ tasks: [] });
+  }
+
   let query = supabase
     .from("tasks")
     .select(`
@@ -25,7 +42,7 @@ export async function GET(request: Request) {
       task_conversations(id, instance_id, chat_jid, chat_name),
       task_comments(count)
     `)
-    .or(`creator_id.eq.${user.id},task_participants.user_id.eq.${user.id}`)
+    .in("id", [...taskIds])
     .order("created_at", { ascending: false });
 
   if (status) query = query.eq("status", status);
