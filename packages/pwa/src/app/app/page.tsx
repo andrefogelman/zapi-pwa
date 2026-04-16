@@ -260,6 +260,8 @@ export default function AppMain() {
         onSelectChat={handleSelectChat}
         userEmail={session?.user?.email || ""}
         onSignOut={() => { signOut(); window.location.href = "/login"; }}
+        onOpenTasks={() => { setTasksMode(true); setSelectedChat(null); }}
+        taskCount={tasks.filter((t) => t.status === "open" || t.status === "in_progress").length}
       />
       <div className="wa-main">
         {tasksMode ? (

@@ -25,6 +25,8 @@ interface Props {
   onSelectChat: (chat: Chat) => void;
   userEmail: string;
   onSignOut: () => void;
+  onOpenTasks: () => void;
+  taskCount: number;
 }
 
 const TABS: { key: ChatTab; label: string }[] = [
@@ -50,6 +52,8 @@ export function Sidebar({
   onSelectChat,
   userEmail,
   onSignOut,
+  onOpenTasks,
+  taskCount,
 }: Props) {
   const { settings } = useUserSettings();
   return (
@@ -57,6 +61,23 @@ export function Sidebar({
       <div className="wa-sidebar-header">
         <div className="wa-sidebar-avatar">{userEmail.charAt(0).toUpperCase()}</div>
         <div style={{ flex: 1 }} />
+        <button className="wa-icon-btn" onClick={onOpenTasks} title="Tarefas" style={{ position: "relative" }}>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="#aebac1">
+            <path d="M22 5.18L10.59 16.6l-4.24-4.24 1.41-1.41 2.83 2.83 10-10L22 5.18zM12 20c-4.41 0-8-3.59-8-8s3.59-8 8-8c1.57 0 3.04.46 4.28 1.25l1.45-1.45A10.02 10.02 0 0012 2C6.48 2 2 6.48 2 12s4.48 10 10 10c2.76 0 5.26-1.12 7.07-2.93l-1.42-1.42A7.94 7.94 0 0112 20z"/>
+          </svg>
+          {taskCount > 0 && (
+            <span style={{
+              position: "absolute", top: 0, right: 0,
+              background: "#00a884", color: "#111b21",
+              fontSize: 9, fontWeight: 700,
+              minWidth: 16, height: 16, borderRadius: "50%",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              padding: "0 3px",
+            }}>
+              {taskCount}
+            </span>
+          )}
+        </button>
         <button className="wa-icon-btn" onClick={onSignOut} title="Sair">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="#aebac1">
             <path d="M16 13v-2H7V8l-5 4 5 4v-3z"/>
