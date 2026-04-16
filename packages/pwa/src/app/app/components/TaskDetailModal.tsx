@@ -31,6 +31,7 @@ export function TaskDetailModal({
   const [commentInput, setCommentInput] = useState("");
   const [sending, setSending] = useState(false);
   const [activeTab, setActiveTab] = useState<"thread" | "links">("thread");
+  const [expandedMsg, setExpandedMsg] = useState<string | null>(null);
 
   if (!task) return null;
 
@@ -247,19 +248,51 @@ export function TaskDetailModal({
                   Mensagens fixadas ({messages.length})
                 </div>
                 {messages.map((m) => (
-                  <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }}>
-                    <div style={{ flex: 1, overflow: "hidden" }}>
-                      <span style={{ color: "#00a884", fontSize: 11 }}>{m.sender_name || "—"}</span>
-                      <span style={{ color: "#e9edef", fontSize: 12, marginLeft: 6 }}>
-                        {m.snippet ? (m.snippet.length > 60 ? m.snippet.slice(0, 60) + "..." : m.snippet) : "[mídia]"}
-                      </span>
+                  <div key={m.id} style={{ padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ flex: 1, overflow: "hidden" }}>
+                        <span style={{ color: "#00a884", fontSize: 11 }}>{m.sender_name || "—"}</span>
+                        <span style={{ color: "#e9edef", fontSize: 12, marginLeft: 6 }}>
+                          {expandedMsg === m.id
+                            ? ""
+                            : m.snippet
+                              ? (m.snippet.length > 60 ? m.snippet.slice(0, 60) + "..." : m.snippet)
+                              : "[mídia]"
+                          }
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                        {m.snippet && (
+                          <button
+                            onClick={() => setExpandedMsg(expandedMsg === m.id ? null : m.id)}
+                            style={{ background: "transparent", border: "none", color: "#53bdeb", fontSize: 12, cursor: "pointer" }}
+                          >
+                            {expandedMsg === m.id ? "fechar" : "ver"}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onUnpinMessage(m.id)}
+                          style={{ background: "transparent", border: "none", color: "#ef4444", fontSize: 12, cursor: "pointer" }}
+                        >
+                          desafixar
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => onUnpinMessage(m.id)}
-                      style={{ background: "transparent", border: "none", color: "#ef4444", fontSize: 12, cursor: "pointer" }}
-                    >
-                      desafixar
-                    </button>
+                    {expandedMsg === m.id && m.snippet && (
+                      <div style={{
+                        marginTop: 6,
+                        padding: "8px 12px",
+                        background: "rgba(255,255,255,0.04)",
+                        borderRadius: 8,
+                        borderLeft: "3px solid #00a884",
+                        color: "#e9edef",
+                        fontSize: 13,
+                        whiteSpace: "pre-wrap",
+                        lineHeight: 1.4,
+                      }}>
+                        {m.snippet}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {messages.length === 0 && (

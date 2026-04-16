@@ -76,6 +76,10 @@ export default function AppMain() {
     const msg = linkMsgPickerOpen;
     const token = session?.access_token;
     if (!token) return;
+    const snippet = (msg.text || msg.mediaCaption || "").slice(0, 500);
+    const senderName = msg.senderName || (msg.fromMe ? "Você" : "Desconhecido");
+
+    // Pin the message
     await fetch(`/api/tasks/${task.id}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -84,11 +88,25 @@ export default function AppMain() {
         chat_jid: msg.chatJid,
         waclaw_msg_id: msg.id,
         waclaw_session_id: sessionId,
-        snippet: (msg.text || msg.mediaCaption || "").slice(0, 200),
-        sender_name: msg.senderName || (msg.fromMe ? "Você" : null),
+        snippet,
+        sender_name: senderName,
         message_ts: new Date(msg.timestamp * 1000).toISOString(),
       }),
     });
+
+    // Auto-post message content as a comment in the discussion
+    if (snippet) {
+      await fetch(`/api/tasks/${task.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          body: `📌 ${senderName}:\n${snippet}`,
+          ref_waclaw_msg_id: msg.id,
+          ref_session_id: sessionId,
+        }),
+      });
+    }
+
     setLinkMsgPickerOpen(null);
     loadTasks();
   }
