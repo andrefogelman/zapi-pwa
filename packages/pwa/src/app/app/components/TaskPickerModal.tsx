@@ -7,24 +7,30 @@ interface Props {
   title: string;
   tasks: Task[];
   onSelect: (task: Task) => void;
-  onCreate?: () => void;
+  onCreate: (title: string) => void;
   onClose: () => void;
 }
 
 export function TaskPickerModal({ open, title, tasks, onSelect, onCreate, onClose }: Props) {
-  const [search, setSearch] = useState("");
+  const [input, setInput] = useState("");
 
   if (!open) return null;
 
-  const filtered = search.trim()
+  const filtered = input.trim()
     ? tasks.filter((t) =>
-        t.title.toLowerCase().includes(search.toLowerCase()) ||
-        (t.description || "").toLowerCase().includes(search.toLowerCase())
+        t.title.toLowerCase().includes(input.toLowerCase()) ||
+        (t.description || "").toLowerCase().includes(input.toLowerCase())
       )
     : tasks;
 
-  // Only show open/in_progress tasks
   const active = filtered.filter((t) => t.status === "open" || t.status === "in_progress");
+
+  function handleCreate() {
+    const name = input.trim();
+    if (!name) return;
+    onCreate(name);
+    setInput("");
+  }
 
   return (
     <div className="wa-modal-overlay" onClick={onClose}>
@@ -33,40 +39,79 @@ export function TaskPickerModal({ open, title, tasks, onSelect, onCreate, onClos
           <span className="wa-modal-title">{title}</span>
           <button className="wa-modal-close" onClick={onClose}>×</button>
         </div>
+
+        {/* Input: busca OU cria */}
         <div style={{ padding: "8px 16px" }}>
-          <input
-            className="wa-modal-search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar tarefa..."
-            autoFocus
-          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              className="wa-modal-search"
+              style={{ flex: 1 }}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Buscar ou criar tarefa..."
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && input.trim()) {
+                  if (active.length > 0) {
+                    onSelect(active[0]);
+                  } else {
+                    handleCreate();
+                  }
+                }
+              }}
+            />
+            <button
+              onClick={handleCreate}
+              disabled={!input.trim()}
+              style={{
+                background: "#00a884",
+                border: "none",
+                color: "#111b21",
+                padding: "8px 14px",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: input.trim() ? "pointer" : "default",
+                opacity: input.trim() ? 1 : 0.4,
+                whiteSpace: "nowrap",
+              }}
+            >
+              + Criar
+            </button>
+          </div>
         </div>
+
         <div className="wa-modal-body" style={{ padding: 0, maxHeight: 400 }}>
-          {onCreate && (
+          {/* Create suggestion when no match */}
+          {input.trim() && active.length === 0 && (
             <div
-              onClick={() => { onCreate(); onClose(); }}
+              onClick={handleCreate}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                padding: "12px 16px",
+                padding: "14px 16px",
                 cursor: "pointer",
-                borderBottom: "1px solid rgba(255,255,255,0.08)",
                 background: "rgba(0,168,132,0.08)",
               }}
               onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,168,132,0.15)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(0,168,132,0.08)")}
             >
               <span style={{ color: "#00a884", fontSize: 20, fontWeight: 300, lineHeight: 1 }}>+</span>
-              <span style={{ color: "#00a884", fontSize: 14, fontWeight: 500 }}>Criar nova tarefa</span>
+              <span style={{ color: "#00a884", fontSize: 14 }}>
+                Criar tarefa: <strong>{input.trim()}</strong>
+              </span>
             </div>
           )}
-          {active.length === 0 && (
+
+          {/* Empty state without input */}
+          {!input.trim() && active.length === 0 && (
             <div style={{ color: "#8696a0", textAlign: "center", padding: 30, fontSize: 13 }}>
-              {tasks.length === 0 ? "Nenhuma tarefa criada ainda." : "Nenhuma tarefa ativa encontrada."}
+              Digite o nome da tarefa acima e clique "+ Criar"
             </div>
           )}
+
+          {/* Task list */}
           {active.map((task) => (
             <div
               key={task.id}
