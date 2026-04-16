@@ -374,6 +374,12 @@ export default function AppMain() {
         onRemoveParticipant={removeParticipant}
         onRemoveConversation={removeConversation}
         onUnpinMessage={unpinMessage}
+        onDelete={async () => {
+          if (selectedTask) {
+            await deleteTask(selectedTask.id);
+            setSelectedTask(null);
+          }
+        }}
         onNavigateToChat={(chatJid) => {
           const chat = chats.find((c) => c.jid === chatJid);
           if (chat) {

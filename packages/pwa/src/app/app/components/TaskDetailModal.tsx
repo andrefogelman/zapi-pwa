@@ -13,6 +13,7 @@ interface Props {
   onRemoveConversation: (id: string) => void;
   onUnpinMessage: (id: string) => void;
   onNavigateToChat: (chatJid: string) => void;
+  onDelete: () => void;
 }
 
 function formatTs(iso: string | null) {
@@ -26,7 +27,7 @@ const STATUS_FLOW = ["open", "in_progress", "resolved", "closed"];
 export function TaskDetailModal({
   task, comments, loading, onClose,
   onUpdateStatus, onAddComment,
-  onRemoveParticipant, onRemoveConversation, onUnpinMessage, onNavigateToChat,
+  onRemoveParticipant, onRemoveConversation, onUnpinMessage, onNavigateToChat, onDelete,
 }: Props) {
   const [commentInput, setCommentInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -57,6 +58,13 @@ export function TaskDetailModal({
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <span className="wa-modal-title" style={{ flex: 1 }}>{task.title}</span>
+              <button
+                onClick={() => { if (confirm("Excluir esta tarefa?")) onDelete(); }}
+                style={{ background: "transparent", border: "none", color: "#ef4444", fontSize: 12, cursor: "pointer", padding: "4px 8px", borderRadius: 4 }}
+                title="Excluir tarefa"
+              >
+                Excluir
+              </button>
               <button className="wa-modal-close" onClick={onClose}>×</button>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -123,9 +131,37 @@ export function TaskDetailModal({
 
           {activeTab === "thread" && (
             <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              {/* Comments */}
+              {/* Comments + pinned messages */}
               <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
-                {comments.length === 0 && (
+                {/* Pinned messages at top */}
+                {messages.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    {messages.map((m) => (
+                      <div
+                        key={m.id}
+                        style={{
+                          background: "rgba(0,168,132,0.08)",
+                          borderLeft: "3px solid #00a884",
+                          borderRadius: "0 8px 8px 0",
+                          padding: "8px 12px",
+                          marginBottom: 6,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                          <span style={{ color: "#00a884", fontSize: 11, fontWeight: 500 }}>
+                            📌 {m.sender_name || "—"}
+                          </span>
+                          <span style={{ color: "#8696a0", fontSize: 10 }}>{m.message_ts ? formatTs(m.message_ts) : ""}</span>
+                        </div>
+                        <div style={{ color: "#e9edef", fontSize: 13, whiteSpace: "pre-wrap" }}>
+                          {m.snippet || "[mídia]"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {comments.length === 0 && messages.length === 0 && (
                   <div style={{ color: "#8696a0", textAlign: "center", padding: 20, fontSize: 13 }}>
                     Nenhum comentário ainda. Inicie a discussão.
                   </div>
