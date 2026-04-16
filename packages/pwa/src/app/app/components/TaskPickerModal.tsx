@@ -7,10 +7,11 @@ interface Props {
   title: string;
   tasks: Task[];
   onSelect: (task: Task) => void;
+  onCreate?: () => void;
   onClose: () => void;
 }
 
-export function TaskPickerModal({ open, title, tasks, onSelect, onClose }: Props) {
+export function TaskPickerModal({ open, title, tasks, onSelect, onCreate, onClose }: Props) {
   const [search, setSearch] = useState("");
 
   if (!open) return null;
@@ -42,6 +43,25 @@ export function TaskPickerModal({ open, title, tasks, onSelect, onClose }: Props
           />
         </div>
         <div className="wa-modal-body" style={{ padding: 0, maxHeight: 400 }}>
+          {onCreate && (
+            <div
+              onClick={() => { onCreate(); onClose(); }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "12px 16px",
+                cursor: "pointer",
+                borderBottom: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(0,168,132,0.08)",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,168,132,0.15)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(0,168,132,0.08)")}
+            >
+              <span style={{ color: "#00a884", fontSize: 20, fontWeight: 300, lineHeight: 1 }}>+</span>
+              <span style={{ color: "#00a884", fontSize: 14, fontWeight: 500 }}>Criar nova tarefa</span>
+            </div>
+          )}
           {active.length === 0 && (
             <div style={{ color: "#8696a0", textAlign: "center", padding: 30, fontSize: 13 }}>
               {tasks.length === 0 ? "Nenhuma tarefa criada ainda." : "Nenhuma tarefa ativa encontrada."}

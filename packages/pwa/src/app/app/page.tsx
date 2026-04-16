@@ -369,6 +369,7 @@ export default function AppMain() {
         title="Vincular conversa a tarefa"
         tasks={tasks}
         onSelect={handleLinkChatToTask}
+        onCreate={() => { setLinkChatPickerOpen(false); setTaskCreateOpen(true); }}
         onClose={() => setLinkChatPickerOpen(false)}
       />
 
@@ -377,6 +378,7 @@ export default function AppMain() {
         title="Fixar mensagem em tarefa"
         tasks={tasks}
         onSelect={handleLinkMsgToTask}
+        onCreate={() => { setLinkMsgPickerOpen(null); setTaskCreateOpen(true); }}
         onClose={() => setLinkMsgPickerOpen(null)}
       />
     </div>
