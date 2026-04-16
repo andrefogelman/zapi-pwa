@@ -7,9 +7,11 @@ import "database/sql"
 type Message struct {
 	Rowid         int64
 	ChatJID       string
+	ChatLID       string // alternate @lid form of the chat, when exposed by whatsmeow
 	ChatName      string
 	MsgID         string
 	SenderJID     string
+	SenderLID     string // alternate @lid form of the sender, when exposed by whatsmeow
 	SenderName    string
 	Ts            int64
 	FromMe        bool
@@ -35,13 +37,13 @@ type Message struct {
 func (s *Store) InsertMessage(m Message) error {
 	_, err := s.db.Exec(`
 		INSERT OR IGNORE INTO messages (
-			chat_jid, chat_name, msg_id, sender_jid, sender_name, ts, from_me,
+			chat_jid, chat_lid, chat_name, msg_id, sender_jid, sender_lid, sender_name, ts, from_me,
 			text, display_text, media_type, media_caption, filename, mime_type,
 			direct_path, media_key, file_sha256, file_enc_sha256, file_length,
 			local_path, downloaded_at
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 	`,
-		m.ChatJID, nullable(m.ChatName), m.MsgID, nullable(m.SenderJID), nullable(m.SenderName),
+		m.ChatJID, nullable(m.ChatLID), nullable(m.ChatName), m.MsgID, nullable(m.SenderJID), nullable(m.SenderLID), nullable(m.SenderName),
 		m.Ts, boolToInt(m.FromMe),
 		nullable(m.Text), nullable(m.DisplayText),
 		nullable(m.MediaType), nullable(m.MediaCaption), nullable(m.Filename), nullable(m.MimeType),
@@ -156,15 +158,15 @@ func (s *Store) UpdateLocalPath(chatJID, msgID, localPath string, downloadedAt i
 
 // --- scanning helpers (kept here so Message stays a plain struct) ---
 
-const messageCols = `rowid, chat_jid, chat_name, msg_id, sender_jid, sender_name, ts, from_me,
+const messageCols = `rowid, chat_jid, chat_lid, chat_name, msg_id, sender_jid, sender_lid, sender_name, ts, from_me,
 	text, display_text, media_type, media_caption, filename, mime_type,
 	direct_path, media_key, file_sha256, file_enc_sha256, file_length,
 	local_path, downloaded_at`
 
 func prefixedMessageCols(prefix string) string {
 	// Used in JOINs where we need to disambiguate columns.
-	return prefix + `rowid, ` + prefix + `chat_jid, ` + prefix + `chat_name, ` + prefix + `msg_id, ` +
-		prefix + `sender_jid, ` + prefix + `sender_name, ` + prefix + `ts, ` + prefix + `from_me, ` +
+	return prefix + `rowid, ` + prefix + `chat_jid, ` + prefix + `chat_lid, ` + prefix + `chat_name, ` + prefix + `msg_id, ` +
+		prefix + `sender_jid, ` + prefix + `sender_lid, ` + prefix + `sender_name, ` + prefix + `ts, ` + prefix + `from_me, ` +
 		prefix + `text, ` + prefix + `display_text, ` + prefix + `media_type, ` + prefix + `media_caption, ` +
 		prefix + `filename, ` + prefix + `mime_type, ` + prefix + `direct_path, ` + prefix + `media_key, ` +
 		prefix + `file_sha256, ` + prefix + `file_enc_sha256, ` + prefix + `file_length, ` +
@@ -177,13 +179,13 @@ type scanner interface {
 
 func scanMessage(r scanner) (Message, error) {
 	var m Message
-	var chatName, senderJID, senderName, text, displayText sql.NullString
+	var chatLID, chatName, senderJID, senderLID, senderName, text, displayText sql.NullString
 	var mediaType, mediaCaption, filename, mimeType, directPath, localPath sql.NullString
 	var fileLength, downloadedAt sql.NullInt64
 	var fromMeInt int
 
 	err := r.Scan(
-		&m.Rowid, &m.ChatJID, &chatName, &m.MsgID, &senderJID, &senderName, &m.Ts, &fromMeInt,
+		&m.Rowid, &m.ChatJID, &chatLID, &chatName, &m.MsgID, &senderJID, &senderLID, &senderName, &m.Ts, &fromMeInt,
 		&text, &displayText, &mediaType, &mediaCaption, &filename, &mimeType,
 		&directPath, &m.MediaKey, &m.FileSHA256, &m.FileEncSHA256, &fileLength,
 		&localPath, &downloadedAt,
@@ -191,8 +193,10 @@ func scanMessage(r scanner) (Message, error) {
 	if err != nil {
 		return Message{}, err
 	}
+	m.ChatLID = chatLID.String
 	m.ChatName = chatName.String
 	m.SenderJID = senderJID.String
+	m.SenderLID = senderLID.String
 	m.SenderName = senderName.String
 	m.FromMe = fromMeInt != 0
 	m.Text = text.String

@@ -20,6 +20,7 @@ const baseInstance = {
   my_phones: [] as string[],
   my_lids: [] as string[],
   connected_phone: "5511977777777",
+  connected_lid: null as string | null,
 };
 
 describe("filterMessage — DMs", () => {
@@ -50,6 +51,33 @@ describe("filterMessage — DMs", () => {
     const r = filterMessage({
       event: { ...baseEvent, chat_jid: "249520503971936@lid" },
       instance: { ...baseInstance, my_lids: ["249520503971936@lid"] },
+      group: null,
+    });
+    expect(r).toEqual({ action: "skip", reason: "self" });
+  });
+
+  test("echo via sender_lid matching connected_lid → skip", () => {
+    const r = filterMessage({
+      event: { ...baseEvent, sender_lid: "249520503971936@lid" },
+      instance: { ...baseInstance, connected_lid: "249520503971936@lid" },
+      group: null,
+    });
+    expect(r).toEqual({ action: "skip", reason: "self" });
+  });
+
+  test("echo via sender_lid in my_lids → skip", () => {
+    const r = filterMessage({
+      event: { ...baseEvent, sender_lid: "987654321@lid" },
+      instance: { ...baseInstance, my_lids: ["987654321@lid"] },
+      group: null,
+    });
+    expect(r).toEqual({ action: "skip", reason: "self" });
+  });
+
+  test("echo via chat_lid when chat_jid is phone form → skip", () => {
+    const r = filterMessage({
+      event: { ...baseEvent, chat_lid: "111111@lid" },
+      instance: { ...baseInstance, my_lids: ["111111@lid"] },
       group: null,
     });
     expect(r).toEqual({ action: "skip", reason: "self" });

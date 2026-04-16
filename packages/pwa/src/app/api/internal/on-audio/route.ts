@@ -40,7 +40,7 @@ export async function POST(req: Request): Promise<Response> {
   // first message arrives).
   const { data: instance } = await supabase
     .from("instances")
-    .select("id, user_id, my_phones, my_lids, connected_phone")
+    .select("id, user_id, my_phones, my_lids, connected_phone, connected_lid")
     .eq("waclaw_session_id", event.waclaw_session_id)
     .maybeSingle();
   if (!instance) {
@@ -95,6 +95,7 @@ export async function POST(req: Request): Promise<Response> {
       my_phones: instance.my_phones ?? [],
       my_lids: instance.my_lids ?? [],
       connected_phone: instance.connected_phone,
+      connected_lid: instance.connected_lid ?? null,
     },
     group: groups[0] ?? null,
   });

@@ -11,8 +11,10 @@ type TranslateInput struct {
 	SessionID       string
 	MessageID       string
 	ChatJID         string
+	ChatLID         string
 	ChatName        string
 	SenderJID       string
+	SenderLID       string
 	SenderName      string
 	FromMe          bool
 	Timestamp       int64
@@ -31,8 +33,10 @@ func TranslateMessage(in TranslateInput) (Event, error) {
 	msg := &WireMessageEvent{
 		ID:         in.MessageID,
 		ChatJID:    in.ChatJID,
+		ChatLID:    in.ChatLID,
 		ChatName:   in.ChatName,
 		From:       jidUserPart(in.SenderJID),
+		SenderLID:  in.SenderLID,
 		SenderName: in.SenderName,
 		FromMe:     in.FromMe,
 		Timestamp:  in.Timestamp,

@@ -44,12 +44,14 @@ func (s *Session) handleMessage(evt *waevt.Message) {
 	if m.SenderJID != "" && m.SenderName != "" {
 		_ = s.store.UpsertContact(store.Contact{
 			JID:      m.SenderJID,
+			LID:      m.SenderLID,
 			PushName: m.SenderName,
 		})
 	}
 	// Upsert chat entry (keeps chat list in sync with messages).
 	_ = s.store.UpsertChat(store.Chat{
 		JID:           m.ChatJID,
+		LID:           m.ChatLID,
 		Kind:          chatKind(m.ChatJID),
 		Name:          m.ChatName,
 		LastMessageTs: m.Ts,
@@ -77,8 +79,10 @@ func (s *Session) handleMessage(evt *waevt.Message) {
 		SessionID:       s.ID,
 		MessageID:       m.MsgID,
 		ChatJID:         m.ChatJID,
+		ChatLID:         m.ChatLID,
 		ChatName:        m.ChatName,
 		SenderJID:       m.SenderJID,
+		SenderLID:       m.SenderLID,
 		SenderName:      m.SenderName,
 		FromMe:          m.FromMe,
 		Timestamp:       m.Ts,

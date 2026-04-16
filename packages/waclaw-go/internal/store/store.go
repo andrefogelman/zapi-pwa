@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -83,9 +84,53 @@ func (s *Store) migrate() error {
 	if _, err := s.db.Exec(migration0002); err != nil {
 		return err
 	}
-	_, err := s.db.Exec(
+	if _, err := s.db.Exec(
 		`INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, strftime('%s','now'))`,
 		2, "0002_chats_trigger",
+	); err != nil {
+		return err
+	}
+
+	// 0003 uses ALTER TABLE statements. mattn/go-sqlite3's db.Exec only runs
+	// the first statement in a multi-statement string, so we split on ';'
+	// and execute each non-empty statement individually.
+	if err := s.execMultiStatement(migration0003); err != nil {
+		return fmt.Errorf("apply 0003: %w", err)
+	}
+	_, err := s.db.Exec(
+		`INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, strftime('%s','now'))`,
+		3, "0003_lid_mapping",
 	)
 	return err
+}
+
+// execMultiStatement splits SQL on semicolons and executes each non-empty
+// statement separately. ALTER TABLE ADD COLUMN fails with "duplicate column
+// name" on re-run, which is swallowed so migrations are idempotent.
+func (s *Store) execMultiStatement(sqlText string) error {
+	for _, raw := range strings.Split(sqlText, ";") {
+		stmt := stripSQLComments(raw)
+		if stmt == "" {
+			continue
+		}
+		if _, err := s.db.Exec(stmt); err != nil {
+			if strings.Contains(err.Error(), "duplicate column name") {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func stripSQLComments(s string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(s, "\n") {
+		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "--") {
+			continue
+		}
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	return strings.TrimSpace(b.String())
 }

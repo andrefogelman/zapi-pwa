@@ -28,14 +28,16 @@ export async function GET(
   try {
     const session = await getSessionStatus(instance.waclaw_session_id);
     if (session.status === "connected" && session.phone) {
-      await supabase
-        .from("instances")
-        .update({
-          status: "connected",
-          connected_phone: session.phone,
-          my_phones: [session.phone],
-        })
-        .eq("id", id);
+      // LID-addressed sessions return "<digits>@lid" instead of a phone number.
+      // Split into separate columns so downstream code never has to guess.
+      const isLid = session.phone.endsWith("@lid");
+      const updates: Record<string, unknown> = {
+        status: "connected",
+        connected_phone: isLid ? null : session.phone,
+        connected_lid: isLid ? session.phone : null,
+      };
+      if (!isLid) updates.my_phones = [session.phone];
+      await supabase.from("instances").update(updates).eq("id", id);
     }
     return Response.json(session);
   } catch (err) {

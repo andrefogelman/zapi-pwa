@@ -3,8 +3,12 @@ package store
 import "time"
 
 // Contact is a contacts table row.
+// LID is the WhatsApp Local Identifier (e.g. "123456789@lid") — populated when
+// whatsmeow exposes the alternate form. Enables dedup when the same contact
+// appears under both phone and LID addressing.
 type Contact struct {
 	JID          string
+	LID          string
 	Phone        string
 	PushName     string
 	FullName     string
@@ -31,18 +35,53 @@ type GroupParticipant struct {
 // interpreted as "don't overwrite" (COALESCE against existing).
 func (s *Store) UpsertContact(c Contact) error {
 	now := time.Now().Unix()
+	lid := nullIfEmpty(c.LID)
 	_, err := s.db.Exec(`
-		INSERT INTO contacts (jid, phone, push_name, full_name, first_name, business_name, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO contacts (jid, lid, phone, push_name, full_name, first_name, business_name, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(jid) DO UPDATE SET
+			lid = COALESCE(excluded.lid, contacts.lid),
 			phone = COALESCE(NULLIF(excluded.phone, ''), contacts.phone),
 			push_name = COALESCE(NULLIF(excluded.push_name, ''), contacts.push_name),
 			full_name = COALESCE(NULLIF(excluded.full_name, ''), contacts.full_name),
 			first_name = COALESCE(NULLIF(excluded.first_name, ''), contacts.first_name),
 			business_name = COALESCE(NULLIF(excluded.business_name, ''), contacts.business_name),
 			updated_at = excluded.updated_at
-	`, c.JID, c.Phone, c.PushName, c.FullName, c.FirstName, c.BusinessName, now)
+	`, c.JID, lid, c.Phone, c.PushName, c.FullName, c.FirstName, c.BusinessName, now)
 	return err
+}
+
+// FindContactByLID returns the contact whose lid column matches, if any.
+// Used to dedup when a message arrives carrying only a LID for a contact
+// previously seen under its phone JID.
+func (s *Store) FindContactByLID(lid string) (*Contact, error) {
+	if lid == "" {
+		return nil, nil
+	}
+	row := s.db.QueryRow(`SELECT jid, COALESCE(lid, ''), COALESCE(phone, ''), COALESCE(push_name, ''), COALESCE(full_name, ''), COALESCE(first_name, ''), COALESCE(business_name, '') FROM contacts WHERE lid = ?`, lid)
+	var c Contact
+	if err := row.Scan(&c.JID, &c.LID, &c.Phone, &c.PushName, &c.FullName, &c.FirstName, &c.BusinessName); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+// LinkLIDToJID associates a LID with an existing contact JID. Used when
+// whatsmeow exposes the phone↔LID mapping (events.UserInfo, PNJID) for a
+// contact already stored under its phone JID.
+func (s *Store) LinkLIDToJID(jid, lid string) error {
+	if jid == "" || lid == "" {
+		return nil
+	}
+	_, err := s.db.Exec(`UPDATE contacts SET lid = ?, updated_at = ? WHERE jid = ? AND (lid IS NULL OR lid = '')`, lid, time.Now().Unix(), jid)
+	return err
+}
+
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 // UpsertGroup upserts a group row.

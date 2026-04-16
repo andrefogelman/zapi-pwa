@@ -15,6 +15,20 @@ export function formatChatName(jid: string, name: string | null): string {
   return phone;
 }
 
+/**
+ * Display a sender's name in group messages. Falls back through:
+ *   1. push_name / full_name (`name` argument, if human-looking),
+ *   2. formatted phone from JID,
+ *   3. "Contato" for LID-only senders (raw LID is not user-friendly).
+ *
+ * Never returns a raw `@lid` or `@s.whatsapp.net` string.
+ */
+export function formatSenderName(name: string | null | undefined, jid: string | null | undefined): string {
+  if (name && !name.includes("@") && name !== jid) return name;
+  if (!jid) return "Contato";
+  return formatChatName(jid, null);
+}
+
 export function formatChatTime(ts: number): string {
   if (!ts) return "";
   const d = new Date(ts < 1e12 ? ts * 1000 : ts);

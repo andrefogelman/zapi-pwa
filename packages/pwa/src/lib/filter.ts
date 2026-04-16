@@ -4,6 +4,7 @@ export interface FilterInstance {
   my_phones: string[];
   my_lids: string[];
   connected_phone: string | null;
+  connected_lid: string | null;
 }
 
 export interface FilterGroup {
@@ -34,17 +35,26 @@ export function filterMessage(input: {
 }): FilterDecision {
   const { event, instance, group } = input;
 
-  // Echo prevention. Three cases:
-  //   - sender matches this instance's connected phone
-  //   - sender's phone is in the user's list of own numbers
-  //   - chat_jid matches a known own LID (covers LID-based DMs to ourselves,
-  //     where waclaw returns the LID string as chat_jid — e.g. "249520...@lid".
-  //     For group chats chat_jid ends with "@g.us", so this never matches a
-  //     legitimate group even if my_lids contains unrelated LID strings.)
+  // Echo prevention. Cases:
+  //   - sender_phone matches connected_phone or a known own phone
+  //   - sender_lid (when present) matches connected_lid or a known own LID
+  //   - chat_jid matches a known own LID (LID-based DMs to ourselves)
+  //   - chat_lid (when present) matches a known own LID
+  //
+  // Group chats never match my_lids via chat_jid because their JID ends in
+  // "@g.us", so stray my_lids entries are harmless. For LID-addressed groups
+  // we still rely on sender_lid/from_me.
+  const ownLidMatchSender = event.sender_lid ? (
+    event.sender_lid === instance.connected_lid ||
+    instance.my_lids.includes(event.sender_lid)
+  ) : false;
+  const ownLidMatchChat = instance.my_lids.includes(event.chat_jid) ||
+    (event.chat_lid ? instance.my_lids.includes(event.chat_lid) : false);
   if (
     event.sender_phone === instance.connected_phone ||
     instance.my_phones.includes(event.sender_phone) ||
-    instance.my_lids.includes(event.chat_jid)
+    ownLidMatchSender ||
+    ownLidMatchChat
   ) {
     return { action: "skip", reason: "self" };
   }

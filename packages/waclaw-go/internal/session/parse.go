@@ -3,18 +3,26 @@ package session
 import (
 	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/store"
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
 	waevt "go.mau.fi/whatsmeow/types/events"
 )
 
 // parseLiveMessage converts a live whatsmeow events.Message into a store.Message
 // ready for InsertMessage. MediaKey/FileSHA256/FileEncSHA256 BLOBs are copied
 // verbatim so the media-queue worker can download later without re-requesting.
+//
+// LID handling: whatsmeow exposes both the primary address (Chat/Sender) and
+// the alternate address (ChatAlt via RecipientAlt for DMs / SenderAlt) when
+// the server provides it. We capture the @lid form in ChatLID/SenderLID so
+// downstream dedup and echo-prevention can match either form.
 func parseLiveMessage(evt *waevt.Message) store.Message {
 	info := evt.Info
 	m := store.Message{
 		ChatJID:    info.Chat.String(),
+		ChatLID:    pickLID(info.Chat, info.RecipientAlt),
 		MsgID:      string(info.ID),
 		SenderJID:  info.Sender.String(),
+		SenderLID:  pickLID(info.Sender, info.SenderAlt),
 		SenderName: info.PushName,
 		Ts:         info.Timestamp.Unix(),
 		FromMe:     info.IsFromMe,
@@ -23,6 +31,18 @@ func parseLiveMessage(evt *waevt.Message) store.Message {
 		extractFromProto(evt.Message, &m)
 	}
 	return m
+}
+
+// pickLID returns the @lid form among primary/alternate JIDs, if any.
+// Returns "" when neither side is LID-addressed (regular phone DMs/groups).
+func pickLID(primary, alt types.JID) string {
+	if primary.Server == types.HiddenUserServer {
+		return primary.String()
+	}
+	if !alt.IsEmpty() && alt.Server == types.HiddenUserServer {
+		return alt.String()
+	}
+	return ""
 }
 
 // extractFromProto fills store.Message fields from a waE2E.Message proto.

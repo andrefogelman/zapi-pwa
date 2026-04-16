@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { formatMsgTime } from "../lib/formatters";
+import { formatMsgTime, formatSenderName } from "../lib/formatters";
 import type { Message, ReplyTarget } from "../hooks/useMessages";
 import { AudioMessage } from "./AudioMessage";
 import { ImageMessage } from "./ImageMessage";
@@ -157,8 +157,8 @@ export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onTog
         onTouchCancel={handleTouchEnd}
       >
         <div className="wa-bubble">
-          {!msg.fromMe && isGroup && msg.senderName && (
-            <div className="wa-msg-sender">{msg.senderName}</div>
+          {!msg.fromMe && isGroup && (msg.senderName || msg.senderJid) && (
+            <div className="wa-msg-sender">{formatSenderName(msg.senderName, msg.senderJid)}</div>
           )}
           {renderContent()}
           <span className="wa-msg-time">

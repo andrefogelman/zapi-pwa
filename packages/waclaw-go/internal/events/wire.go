@@ -12,8 +12,10 @@ type WireAudio struct {
 type WireMessageEvent struct {
 	ID         string     `json:"id"`
 	ChatJID    string     `json:"chat_jid"`
+	ChatLID    string     `json:"chat_lid,omitempty"`
 	ChatName   string     `json:"chat_name"`
 	From       string     `json:"from"`
+	SenderLID  string     `json:"sender_lid,omitempty"`
 	SenderName string     `json:"sender_name"`
 	FromMe     bool       `json:"from_me"`
 	Timestamp  int64      `json:"timestamp"`

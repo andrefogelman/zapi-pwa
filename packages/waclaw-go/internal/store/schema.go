@@ -7,3 +7,6 @@ var migration0001 string
 
 //go:embed migrations/0002_chats_trigger.sql
 var migration0002 string
+
+//go:embed migrations/0003_lid_mapping.sql
+var migration0003 string

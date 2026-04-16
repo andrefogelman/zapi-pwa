@@ -8,6 +8,7 @@ import "database/sql"
 // whatever they have — the display resolution is for reads, not writes.
 type Chat struct {
 	JID           string
+	LID           string // alternate @lid form, when known
 	Kind          string // dm | group | broadcast | unknown
 	Name          string
 	LastMessageTs int64
@@ -25,16 +26,17 @@ type Chat struct {
 // regress the timestamp.
 func (s *Store) UpsertChat(c Chat) error {
 	_, err := s.db.Exec(`
-		INSERT INTO chats (jid, kind, name, last_message_ts)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO chats (jid, lid, kind, name, last_message_ts)
+		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(jid) DO UPDATE SET
+			lid = COALESCE(excluded.lid, chats.lid),
 			kind = excluded.kind,
 			name = COALESCE(NULLIF(excluded.name, ''), chats.name),
 			last_message_ts = CASE
 				WHEN excluded.last_message_ts > chats.last_message_ts THEN excluded.last_message_ts
 				ELSE chats.last_message_ts
 			END
-	`, c.JID, c.Kind, c.Name, c.LastMessageTs)
+	`, c.JID, nullIfEmpty(c.LID), c.Kind, c.Name, c.LastMessageTs)
 	return err
 }
 
@@ -60,7 +62,7 @@ func (s *Store) GetChats() ([]Chat, error) {
 			(SELECT text FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC LIMIT 1) AS last_message,
 			(SELECT sender_name FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC LIMIT 1) AS last_sender
 		FROM chats c
-		LEFT JOIN contacts ct ON c.jid = ct.jid
+		LEFT JOIN contacts ct ON c.jid = ct.jid OR c.jid = ct.lid OR (c.lid IS NOT NULL AND (c.lid = ct.jid OR c.lid = ct.lid))
 		LEFT JOIN groups g ON c.jid = g.jid
 		WHERE c.last_message_ts > 0
 		ORDER BY c.last_message_ts DESC
