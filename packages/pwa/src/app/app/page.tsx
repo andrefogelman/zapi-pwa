@@ -14,6 +14,10 @@ import { useMessages, type Message } from "./hooks/useMessages";
 import { useInstances } from "./hooks/useInstances";
 import { useWaclaw } from "./hooks/useWaclaw";
 import { QRConnectWizard } from "./components/QRConnectWizard";
+import { useTasks, useTaskDetail, type Task } from "./hooks/useTasks";
+import { TaskListPanel } from "./components/TaskListPanel";
+import { TaskCreateModal } from "./components/TaskCreateModal";
+import { TaskDetailModal } from "./components/TaskDetailModal";
 
 export default function AppMain() {
   const { session, signOut } = useAuth();
@@ -24,6 +28,15 @@ export default function AppMain() {
   const [forwardTarget, setForwardTarget] = useState<Message | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [tasksMode, setTasksMode] = useState(false);
+  const [taskCreateOpen, setTaskCreateOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask } = useTasks();
+  const {
+    task: taskDetail, comments: taskComments, loading: taskDetailLoading,
+    addComment, removeParticipant, removeConversation, unpinMessage,
+  } = useTaskDetail(selectedTask?.id || null);
 
   // Auto-select the first waclaw-enabled instance once the list loads
   useEffect(() => {
@@ -194,8 +207,16 @@ export default function AppMain() {
         onSignOut={() => { signOut(); window.location.href = "/login"; }}
       />
       <div className="wa-main">
-        {!selectedChat ? (
-          <EmptyState />
+        {tasksMode ? (
+          <TaskListPanel
+            tasks={tasks}
+            loading={tasksLoading}
+            onSelectTask={(t) => setSelectedTask(t)}
+            onCreateTask={() => setTaskCreateOpen(true)}
+            onBack={() => setTasksMode(false)}
+          />
+        ) : !selectedChat ? (
+          <EmptyState onOpenTasks={() => setTasksMode(true)} />
         ) : (
           <ChatPanel
             chat={selectedChat}
@@ -255,6 +276,26 @@ export default function AppMain() {
         sessionId={sessionId}
         chatJid={selectedChat?.jid || null}
         chatName={selectedChat?.name || ""}
+      />
+
+      <TaskCreateModal
+        open={taskCreateOpen}
+        onClose={() => setTaskCreateOpen(false)}
+        onCreate={createTask}
+      />
+
+      <TaskDetailModal
+        task={selectedTask ? taskDetail : null}
+        comments={taskComments}
+        loading={taskDetailLoading}
+        onClose={() => setSelectedTask(null)}
+        onUpdateStatus={(status) => {
+          if (selectedTask) updateTask(selectedTask.id, { status: status as Task["status"] });
+        }}
+        onAddComment={addComment}
+        onRemoveParticipant={removeParticipant}
+        onRemoveConversation={removeConversation}
+        onUnpinMessage={unpinMessage}
       />
     </div>
   );
