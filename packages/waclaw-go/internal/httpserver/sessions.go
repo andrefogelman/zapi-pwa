@@ -42,3 +42,35 @@ func (s *Server) handleSessionStatus(w http.ResponseWriter, r *http.Request) {
 		"storePath": sess.StorePath(),
 	})
 }
+
+// handleSyncStatus handles GET /sessions/{id}/sync-status — returns store
+// counts + freshness indicators. Consumers (PWA, monitoring) use this to
+// detect stale stores that require a backfill.
+func (s *Server) handleSyncStatus(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	sess, err := s.deps.Manager.Get(id)
+	if err != nil {
+		s.writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	st := sess.Store()
+	if st == nil {
+		s.writeError(w, http.StatusServiceUnavailable, "store not initialised")
+		return
+	}
+	stats, err := st.GetSyncStats()
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	state := sess.State()
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"id":                 sess.ID,
+		"state":              state,
+		"connected":          state == "connected",
+		"message_count":      stats.MessageCount,
+		"chat_count":         stats.ChatCount,
+		"oldest_message_ts":  stats.OldestMsgTs,
+		"newest_message_ts":  stats.NewestMsgTs,
+	})
+}

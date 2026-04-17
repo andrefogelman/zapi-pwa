@@ -147,6 +147,34 @@ func (s *Store) SearchMessages(query string, limit int) ([]Message, error) {
 	return out, rows.Err()
 }
 
+// SyncStats summarizes the local store for /sync-status.
+type SyncStats struct {
+	MessageCount int64 `json:"message_count"`
+	ChatCount    int64 `json:"chat_count"`
+	OldestMsgTs  int64 `json:"oldest_message_ts,omitempty"`
+	NewestMsgTs  int64 `json:"newest_message_ts,omitempty"`
+}
+
+// GetSyncStats returns aggregate counts over the full store. Intended for the
+// sync-status endpoint so callers can detect gaps between the newest local
+// message and wall-clock time (a stale local store implies missed backfill).
+func (s *Store) GetSyncStats() (SyncStats, error) {
+	var out SyncStats
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM messages`).Scan(&out.MessageCount); err != nil {
+		return out, err
+	}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM chats WHERE last_message_ts > 0`).Scan(&out.ChatCount); err != nil {
+		return out, err
+	}
+	if out.MessageCount > 0 {
+		var oldest, newest sql.NullInt64
+		_ = s.db.QueryRow(`SELECT MIN(ts), MAX(ts) FROM messages WHERE ts > 0`).Scan(&oldest, &newest)
+		out.OldestMsgTs = oldest.Int64
+		out.NewestMsgTs = newest.Int64
+	}
+	return out, nil
+}
+
 // UpdateLocalPath records that a message's media has been downloaded.
 func (s *Store) UpdateLocalPath(chatJID, msgID, localPath string, downloadedAt int64) error {
 	_, err := s.db.Exec(`

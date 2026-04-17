@@ -98,10 +98,23 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
     if (!chatJid || loadingOlder || !hasOlder || messages.length === 0) return;
     setLoadingOlder(true);
     const oldest = messages[0]?.timestamp;
-    const data = await fetcher(`messages/${encodeURIComponent(chatJid)}?limit=50&before=${oldest}`);
-    if (Array.isArray(data)) {
-      if (data.length === 0) setHasOlder(false);
-      else setMessages((prev) => [...data.map(enrichMessage), ...prev]);
+    const local = await fetcher(`messages/${encodeURIComponent(chatJid)}?limit=50&before=${oldest}`);
+    if (Array.isArray(local) && local.length > 0) {
+      setMessages((prev) => [...local.map(enrichMessage), ...prev]);
+      setLoadingOlder(false);
+      return;
+    }
+    // Local store empty for this range — ask waclaw to pull older messages
+    // from the WhatsApp history sync protocol, then retry the local query.
+    // Backfill is async: the server responds when the request is sent, but the
+    // history arrives over the socket. Give it ~2s then retry once.
+    await fetcher(`backfill/${encodeURIComponent(chatJid)}?count=50`, { method: "POST" });
+    await new Promise((r) => setTimeout(r, 2000));
+    const retry = await fetcher(`messages/${encodeURIComponent(chatJid)}?limit=50&before=${oldest}`);
+    if (Array.isArray(retry) && retry.length > 0) {
+      setMessages((prev) => [...retry.map(enrichMessage), ...prev]);
+    } else {
+      setHasOlder(false);
     }
     setLoadingOlder(false);
   }, [chatJid, fetcher, loadingOlder, hasOlder, messages, enrichMessage]);

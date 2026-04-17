@@ -73,6 +73,7 @@ func (s *Server) mountRoutes() {
 		r.Route("/sessions/{id}", func(r chi.Router) {
 			r.Delete("/", s.handleDeleteSession)
 			r.Get("/status", s.handleSessionStatus)
+			r.Get("/sync-status", s.handleSyncStatus)
 			r.Post("/auth", s.handleAuth)
 			r.Get("/qr", s.handleQR)
 			r.Get("/chats", s.handleChats)

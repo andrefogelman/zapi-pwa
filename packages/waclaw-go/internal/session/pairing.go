@@ -177,6 +177,9 @@ func (s *Session) buildEventHandler() func(evt interface{}) {
 					s.log.Info().Int("resolved", n).Msg("newsletter names updated")
 				}
 			}()
+			// Passive backfill for recently active chats. Runs in background
+			// so it doesn't block the event loop. Small N to stay polite.
+			go s.passiveBackfillOnConnect(20, 50)
 		case *waevt.Disconnected:
 			s.setState(StateDisconnected)
 			s.log.Info().Msg("whatsapp disconnected")
