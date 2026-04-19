@@ -31,9 +31,10 @@ export default function LoginPage() {
         background: "#fff", borderRadius: 8, padding: "2rem",
         width: 360, boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
       }}>
-        <h1 style={{ fontSize: "1.25rem", marginBottom: "1.5rem", textAlign: "center" }}>
-          falabem
-        </h1>
+        <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-wordmark.svg" alt="falabem" style={{ height: 44, width: "auto" }} />
+        </div>
 
         <button
           onClick={signInWithGoogle}

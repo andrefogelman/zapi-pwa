@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 110" width="420" height="110" role="img" aria-label="falabem">
+  <style>
+    .wm { font: 800 80px 'Inter','SF Pro Text',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; letter-spacing: -2px; }
+  </style>
+  <text x="16" y="80" class="wm" fill="#075e54">falabem</text>
+  <g transform="translate(362,60)">
+    <rect x="0" y="0" width="28" height="28" rx="8" ry="8" fill="#00a884"/>
+    <path d="M6 28 L6 36 L14 28 Z" fill="#00a884"/>
+  </g>
+</svg>
