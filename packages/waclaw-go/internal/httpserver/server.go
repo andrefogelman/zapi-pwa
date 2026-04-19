@@ -77,6 +77,7 @@ func (s *Server) mountRoutes() {
 			r.Post("/auth", s.handleAuth)
 			r.Get("/qr", s.handleQR)
 			r.Get("/chats", s.handleChats)
+			r.Get("/groups", s.handleListGroups)
 			r.Get("/messages/{jid}", s.handleMessages)
 			r.Get("/search", s.handleSearch)
 			// Phase 8: send, actions, media
