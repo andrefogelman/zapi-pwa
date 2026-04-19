@@ -168,6 +168,24 @@ func (s *Session) processHistoryConversation(conv *waHistorySync.Conversation) {
 	}
 }
 
+// handleGroupInfo persists group subject changes (or first-time names) so
+// the chat list picks them up without a reconnect. Triggered when an admin
+// renames the group or when whatsmeow receives initial metadata for a group.
+func (s *Session) handleGroupInfo(evt *waevt.GroupInfo) {
+	if s.store == nil {
+		return
+	}
+	if evt.Name == nil || evt.Name.Name == "" {
+		return
+	}
+	if err := s.store.UpsertGroup(store.Group{
+		JID:  evt.JID.String(),
+		Name: evt.Name.Name,
+	}); err != nil {
+		s.log.Warn().Err(err).Str("jid", evt.JID.String()).Msg("upsert group from event failed")
+	}
+}
+
 // handlePushName upserts a contact's push name in the store.
 func (s *Session) handlePushName(evt *waevt.PushName) {
 	if s.store == nil {

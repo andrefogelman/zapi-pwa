@@ -557,14 +557,34 @@ export function SettingsModal({
                 <p>Selecione uma instância primeiro.</p>
               ) : (
                 <>
-                  <button
-                    onClick={fetchFromWhatsApp}
-                    disabled={fetchingGroups}
-                    className="wa-modal-primary"
-                    style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
+                  <div
+                    style={{
+                      padding: "0.75rem 1rem",
+                      background: "rgba(0, 168, 132, 0.12)",
+                      border: "1px solid rgba(0, 168, 132, 0.3)",
+                      borderRadius: 6,
+                      marginBottom: "1rem",
+                      fontSize: "0.875rem",
+                      lineHeight: 1.45,
+                    }}
                   >
-                    {fetchingGroups ? "Buscando..." : "Buscar grupos do WhatsApp"}
-                  </button>
+                    Por padrão apenas seus próprios áudios são transcritos.
+                    Autorize os grupos onde você quer <strong>transcrever
+                    também os áudios enviados por terceiros</strong>.
+                  </div>
+
+                  {(groups.length > 0 || fetchedGroups.length > 0) && (
+                    <button
+                      onClick={fetchFromWhatsApp}
+                      disabled={fetchingGroups}
+                      className="wa-modal-primary"
+                      style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
+                    >
+                      {fetchingGroups
+                        ? "Buscando..."
+                        : "Buscar mais grupos do WhatsApp"}
+                    </button>
+                  )}
 
                   {fetchedGroups.length > 0 && (
                     <div
@@ -576,7 +596,7 @@ export function SettingsModal({
                       }}
                     >
                       <h4 style={{ margin: "0 0 0.5rem 0" }}>
-                        Grupos encontrados (clique para importar)
+                        Selecione os grupos para autorizar
                       </h4>
                       {fetchedGroups.map((g) => (
                         <div
@@ -593,116 +613,134 @@ export function SettingsModal({
                             onClick={() => importGroup(g)}
                             style={{ fontSize: "0.8rem" }}
                           >
-                            Importar
+                            Autorizar
                           </button>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  <h3 style={{ marginTop: 0 }}>Autorizados</h3>
-                  {groups.length === 0 ? (
-                    <p style={{ color: "#666" }}>Nenhum grupo autorizado.</p>
-                  ) : (
-                    <table
+                  {groups.length === 0 && fetchedGroups.length === 0 ? (
+                    <div
                       style={{
-                        width: "100%",
-                        borderCollapse: "collapse",
-                        fontSize: "0.9rem",
+                        padding: "2rem 1rem",
+                        textAlign: "center",
+                        border: "1px dashed #444",
+                        borderRadius: 6,
                       }}
                     >
-                      <thead>
-                        <tr style={{ borderBottom: "2px solid #333" }}>
-                          <th
-                            style={{ textAlign: "left", padding: "0.5rem" }}
-                          >
-                            Nome
-                          </th>
-                          <th
-                            style={{ textAlign: "center", padding: "0.5rem" }}
-                            title="Transcrever todos os áudios do grupo"
-                          >
-                            T
-                          </th>
-                          <th
-                            style={{ textAlign: "center", padding: "0.5rem" }}
-                            title="Enviar transcrição de volta no chat"
-                          >
-                            R
-                          </th>
-                          <th
-                            style={{ textAlign: "center", padding: "0.5rem" }}
-                            title="Incluir em relatório diário"
-                          >
-                            D
-                          </th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {groups.map((g) => (
-                          <tr
-                            key={g.group_id}
-                            style={{ borderBottom: "1px solid #eee" }}
-                          >
-                            <td style={{ padding: "0.5rem" }}>{g.subject}</td>
-                            <td style={{ textAlign: "center" }}>
-                              <input
-                                type="checkbox"
-                                checked={g.transcribe_all}
-                                onChange={(e) =>
-                                  toggleGroupFlag(
-                                    g.group_id,
-                                    "transcribe_all",
-                                    e.target.checked,
-                                  )
-                                }
-                              />
-                            </td>
-                            <td style={{ textAlign: "center" }}>
-                              <input
-                                type="checkbox"
-                                checked={g.send_reply}
-                                onChange={(e) =>
-                                  toggleGroupFlag(
-                                    g.group_id,
-                                    "send_reply",
-                                    e.target.checked,
-                                  )
-                                }
-                              />
-                            </td>
-                            <td style={{ textAlign: "center" }}>
-                              <input
-                                type="checkbox"
-                                checked={g.monitor_daily}
-                                onChange={(e) =>
-                                  toggleGroupFlag(
-                                    g.group_id,
-                                    "monitor_daily",
-                                    e.target.checked,
-                                  )
-                                }
-                              />
-                            </td>
-                            <td>
-                              <button
-                                onClick={() => removeGroup(g.group_id)}
-                                style={{
-                                  color: "red",
-                                  background: "none",
-                                  border: "none",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                Remover
-                              </button>
-                            </td>
+                      <p style={{ margin: "0 0 0.5rem 0", fontWeight: 600 }}>
+                        Nenhum grupo autorizado ainda.
+                      </p>
+                      <p
+                        style={{
+                          margin: "0 0 1.25rem 0",
+                          color: "#888",
+                          fontSize: "0.875rem",
+                        }}
+                      >
+                        Busque os grupos do seu WhatsApp e escolha em quais
+                        você quer ligar a transcrição de áudios de terceiros.
+                      </p>
+                      <button
+                        onClick={fetchFromWhatsApp}
+                        disabled={fetchingGroups}
+                        className="wa-modal-primary"
+                        style={{ padding: "0.6rem 1.25rem" }}
+                      >
+                        {fetchingGroups
+                          ? "Buscando..."
+                          : "Buscar meus grupos do WhatsApp"}
+                      </button>
+                    </div>
+                  ) : groups.length > 0 ? (
+                    <>
+                      <h3 style={{ marginTop: 0 }}>Grupos autorizados</h3>
+                      <table
+                        style={{
+                          width: "100%",
+                          borderCollapse: "collapse",
+                          fontSize: "0.9rem",
+                        }}
+                      >
+                        <thead>
+                          <tr style={{ borderBottom: "2px solid #333" }}>
+                            <th
+                              style={{ textAlign: "left", padding: "0.5rem" }}
+                            >
+                              Grupo
+                            </th>
+                            <th
+                              style={{
+                                textAlign: "center",
+                                padding: "0.5rem",
+                              }}
+                            >
+                              Transcrever terceiros
+                            </th>
+                            <th
+                              style={{
+                                textAlign: "center",
+                                padding: "0.5rem",
+                              }}
+                            >
+                              Responder no chat
+                            </th>
+                            <th></th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
+                        </thead>
+                        <tbody>
+                          {groups.map((g) => (
+                            <tr
+                              key={g.group_id}
+                              style={{ borderBottom: "1px solid #eee" }}
+                            >
+                              <td style={{ padding: "0.5rem" }}>{g.subject}</td>
+                              <td style={{ textAlign: "center" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={g.transcribe_all}
+                                  onChange={(e) =>
+                                    toggleGroupFlag(
+                                      g.group_id,
+                                      "transcribe_all",
+                                      e.target.checked,
+                                    )
+                                  }
+                                />
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={g.send_reply}
+                                  onChange={(e) =>
+                                    toggleGroupFlag(
+                                      g.group_id,
+                                      "send_reply",
+                                      e.target.checked,
+                                    )
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <button
+                                  onClick={() => removeGroup(g.group_id)}
+                                  style={{
+                                    color: "red",
+                                    background: "none",
+                                    border: "none",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Remover
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
+                  ) : null}
                 </>
               )}
             </div>

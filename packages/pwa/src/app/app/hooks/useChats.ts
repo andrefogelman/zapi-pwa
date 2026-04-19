@@ -7,6 +7,7 @@ import { getChatTab, type ChatTab } from "../lib/formatters";
 
 export interface Chat {
   jid: string;
+  lid: string | null;
   name: string;
   kind: string;
   lastTs: number;
@@ -71,6 +72,7 @@ export function useChats(sessionId: string | null) {
           const lastReadTs = stored ? parseInt(stored, 10) : 0;
           return {
             jid,
+            lid: (c.lid as string) || null,
             name: (c.name as string) || jid.split("@")[0],
             kind: (c.kind as string) || "unknown",
             lastTs,

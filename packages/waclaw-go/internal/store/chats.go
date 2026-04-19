@@ -48,6 +48,7 @@ func (s *Store) GetChats() ([]Chat, error) {
 	rows, err := s.db.Query(`
 		SELECT
 			c.jid,
+			COALESCE(c.lid, '') AS lid,
 			COALESCE(
 				NULLIF(g.name, ''),
 				NULLIF(ct.full_name, ''),
@@ -76,7 +77,7 @@ func (s *Store) GetChats() ([]Chat, error) {
 	for rows.Next() {
 		var c Chat
 		var lastMsg, lastSender sql.NullString
-		if err := rows.Scan(&c.JID, &c.Name, &c.Kind, &c.LastMessageTs, &c.MsgCount, &lastMsg, &lastSender); err != nil {
+		if err := rows.Scan(&c.JID, &c.LID, &c.Name, &c.Kind, &c.LastMessageTs, &c.MsgCount, &lastMsg, &lastSender); err != nil {
 			return nil, err
 		}
 		c.LastMessage = lastMsg.String

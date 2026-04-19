@@ -1,10 +1,13 @@
 export function formatChatName(jid: string, name: string | null): string {
   if (name && name !== jid && !name.includes("@")) return name;
   const [local, server] = jid.split("@");
-  // LID JIDs are privacy-preserving WhatsApp identifiers — show as generic
-  // "Contato" since the large numeric LID is meaningless to the user.
   if (server === "lid" || server === "hosted.lid") return "Contato";
+  // Legacy group JID local-part: `<phone>-<timestamp>` (pre-@g.us era).
+  if (/^\d+-\d+$/.test(local)) return "Grupo";
   const phone = local;
+  // LID heuristic: 15+ contiguous digits exceed any real E.164 phone.
+  // Backend should mark these as @lid, but this is a display safety net.
+  if (/^\d{15,}$/.test(phone)) return "Contato";
   if (/^\d{12,13}$/.test(phone) && phone.startsWith("55")) {
     const ddd = phone.slice(2, 4);
     const num = phone.slice(4);

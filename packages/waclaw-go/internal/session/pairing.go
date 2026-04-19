@@ -180,6 +180,12 @@ func (s *Session) buildEventHandler() func(evt interface{}) {
 			// Passive backfill for recently active chats. Runs in background
 			// so it doesn't block the event loop. Small N to stay polite.
 			go s.passiveBackfillOnConnect(20, 50)
+			// Resolve group subjects for groups whose name wasn't captured
+			// by history sync (legacy `<phone>-<timestamp>` chat IDs show up
+			// as raw JIDs in the UI without this).
+			go s.backfillGroupNames(50)
+		case *waevt.GroupInfo:
+			s.handleGroupInfo(v)
 		case *waevt.Disconnected:
 			s.setState(StateDisconnected)
 			s.log.Info().Msg("whatsapp disconnected")
