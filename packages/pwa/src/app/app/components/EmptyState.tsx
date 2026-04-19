@@ -6,9 +6,7 @@ export function EmptyState({ onOpenTasks }: Props) {
   return (
     <div className="wa-empty">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/icon.svg" alt="falabem" width={120} height={120} style={{ opacity: 0.9 }} />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-wordmark-light.svg" alt="falabem" style={{ height: 52, width: "auto", marginTop: 24 }} />
+      <img src="/logo-wordmark-light.svg" alt="falabem" style={{ width: 280, height: "auto" }} />
       <p style={{ fontSize: 14, color: "#8696a0", marginTop: 8 }}>
         Envie e receba mensagens. Selecione uma conversa para começar.
       </p>
