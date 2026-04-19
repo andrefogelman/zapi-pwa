@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Transcritor WhatsApp",
-    short_name: "Transcritor",
+    name: "falabem",
+    short_name: "falabem",
     description: "Transcrição automática de áudios do WhatsApp",
     start_url: "/app",
     display: "standalone",

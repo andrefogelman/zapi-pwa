@@ -11,7 +11,7 @@ export function EmptyState({ onOpenTasks }: Props) {
         <path d="M154.07 63.5005H198.638" stroke="#00a884" strokeWidth="3" strokeLinecap="round"/>
         <path d="M154.07 75.5005H185.638" stroke="#00a884" strokeWidth="3" strokeLinecap="round"/>
       </svg>
-      <h2 style={{ fontSize: 28, fontWeight: 300, color: "#e9edef", marginTop: 20 }}>Transcritor WhatsApp</h2>
+      <h2 style={{ fontSize: 28, fontWeight: 300, color: "#e9edef", marginTop: 20 }}>falabem</h2>
       <p style={{ fontSize: 14, color: "#8696a0", marginTop: 8 }}>
         Envie e receba mensagens. Selecione uma conversa para começar.
       </p>

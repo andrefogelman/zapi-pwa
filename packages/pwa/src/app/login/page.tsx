@@ -32,7 +32,7 @@ export default function LoginPage() {
         width: 360, boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
       }}>
         <h1 style={{ fontSize: "1.25rem", marginBottom: "1.5rem", textAlign: "center" }}>
-          Transcritor WhatsApp
+          falabem
         </h1>
 
         <button
