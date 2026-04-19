@@ -3,7 +3,9 @@ package session
 import (
 	waevents "github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/events"
 	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/store"
+	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	waHistorySync "go.mau.fi/whatsmeow/proto/waHistorySync"
+	waWeb "go.mau.fi/whatsmeow/proto/waWeb"
 	waevt "go.mau.fi/whatsmeow/types/events"
 )
 
@@ -35,10 +37,12 @@ func (s *Session) handleMessage(evt *waevt.Message) {
 	if s.store == nil {
 		return
 	}
-	// Skip reaction messages — they arrive as standalone messages in whatsmeow
-	// but the UI doesn't aggregate them onto the target bubble yet, so they'd
-	// render as empty bubbles. Drop until proper reaction UI lands.
-	if evt.Message != nil && evt.Message.GetReactionMessage() != nil {
+	// Reactions arrive as standalone messages pointing at a target msg_id.
+	// Persist them to the reactions table (one row per reactor) so the UI
+	// can aggregate emoji chips on the target bubble, then return without
+	// creating a plain message row.
+	if rm := evt.Message.GetReactionMessage(); rm != nil {
+		s.handleReaction(evt, rm)
 		return
 	}
 	m := parseLiveMessage(evt)
@@ -125,8 +129,9 @@ func (s *Session) processHistoryConversation(conv *waHistorySync.Conversation) {
 		if wmi == nil {
 			continue
 		}
-		// Skip reactions — same reasoning as live messages above.
-		if wmi.GetMessage() != nil && wmi.GetMessage().GetReactionMessage() != nil {
+		// Reactions: persist to reactions table, skip the default message insert.
+		if rm := wmi.GetMessage().GetReactionMessage(); rm != nil {
+			s.persistHistoryReaction(conv, wmi, rm)
 			continue
 		}
 		key := wmi.GetKey()
@@ -176,6 +181,89 @@ func (s *Session) processHistoryConversation(conv *waHistorySync.Conversation) {
 			}
 		}
 	}
+}
+
+// persistHistoryReaction upserts a reaction from history-sync payload. The
+// history format nests the reactor under the message's own Key.Participant
+// when in groups, or falls back to the conv ID for DMs.
+func (s *Session) persistHistoryReaction(conv *waHistorySync.Conversation, wmi *waWeb.WebMessageInfo, rm *waE2E.ReactionMessage) {
+	if s.store == nil || rm == nil {
+		return
+	}
+	targetKey := rm.GetKey()
+	if targetKey == nil {
+		return
+	}
+	targetMsgID := targetKey.GetID()
+	if targetMsgID == "" {
+		return
+	}
+	chatJID := conv.GetID()
+	msgKey := wmi.GetKey()
+	reactorJID := ""
+	if msgKey != nil {
+		if p := msgKey.GetParticipant(); p != "" {
+			reactorJID = p
+		} else if msgKey.GetFromMe() {
+			// Reactor is self — we'll store our own JID when available.
+			reactorJID = chatJID
+		} else {
+			reactorJID = chatJID
+		}
+	}
+	_ = s.store.UpsertReaction(store.Reaction{
+		ChatJID:     chatJID,
+		TargetMsgID: targetMsgID,
+		ReactorJID:  reactorJID,
+		Emoji:       rm.GetText(),
+		Ts:          int64(wmi.GetMessageTimestamp()),
+	})
+}
+
+// handleReaction persists a reaction (emoji or removal) targeting an earlier
+// message. Called from handleMessage when it detects a ReactionMessage proto.
+// Pushes a minimal wire event to the bus so connected clients can refresh the
+// target bubble without a full re-fetch.
+func (s *Session) handleReaction(evt *waevt.Message, rm *waE2E.ReactionMessage) {
+	if s.store == nil || rm == nil {
+		return
+	}
+	targetKey := rm.GetKey()
+	if targetKey == nil {
+		return
+	}
+	targetMsgID := targetKey.GetID()
+	if targetMsgID == "" {
+		return
+	}
+	chatJID := evt.Info.Chat.String()
+	reactorJID := evt.Info.Sender.String()
+	reactorLID := pickLID(evt.Info.Sender, evt.Info.SenderAlt)
+	if err := s.store.UpsertReaction(store.Reaction{
+		ChatJID:     chatJID,
+		TargetMsgID: targetMsgID,
+		ReactorJID:  reactorJID,
+		ReactorLID:  reactorLID,
+		Emoji:       rm.GetText(),
+		Ts:          evt.Info.Timestamp.Unix(),
+	}); err != nil {
+		s.log.Warn().Err(err).Str("target", targetMsgID).Msg("upsert reaction failed")
+		return
+	}
+	evt2, err := waevents.TranslateReaction(waevents.WireReactionEvent{
+		SessionID:   s.ID,
+		ChatJID:     chatJID,
+		TargetMsgID: targetMsgID,
+		ReactorJID:  reactorJID,
+		ReactorLID:  reactorLID,
+		Emoji:       rm.GetText(),
+		Timestamp:   evt.Info.Timestamp.Unix(),
+	})
+	if err != nil {
+		s.log.Warn().Err(err).Msg("translate reaction failed")
+		return
+	}
+	s.handlerDeps.Bus.Publish(evt2)
 }
 
 // handleGroupInfo persists group subject changes (or first-time names) so

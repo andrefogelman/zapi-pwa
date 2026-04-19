@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef, useState } from "react";
 import { formatMsgTime, formatSenderName } from "../lib/formatters";
 import type { Message, ReplyTarget } from "../hooks/useMessages";
@@ -161,6 +163,16 @@ export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onTog
             <div className="wa-msg-sender">{formatSenderName(msg.senderName, msg.senderJid)}</div>
           )}
           {renderContent()}
+          {msg.reactions && msg.reactions.length > 0 && (
+            <div className="wa-msg-reactions">
+              {msg.reactions.map((r) => (
+                <span key={r.emoji} className="wa-reaction-chip">
+                  <span className="wa-reaction-emoji">{r.emoji}</span>
+                  {r.count > 1 && <span className="wa-reaction-count">{r.count}</span>}
+                </span>
+              ))}
+            </div>
+          )}
           <span className="wa-msg-time">
             {msg.starred && (
               <svg

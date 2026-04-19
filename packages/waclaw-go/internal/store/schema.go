@@ -10,3 +10,6 @@ var migration0002 string
 
 //go:embed migrations/0003_lid_mapping.sql
 var migration0003 string
+
+//go:embed migrations/0004_reactions.sql
+var migration0004 string

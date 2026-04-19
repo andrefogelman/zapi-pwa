@@ -23,6 +23,7 @@ export interface Message {
   transcriptionStatus: string | null;
   contact: MessageContact | null;
   starred: boolean;
+  reactions?: { emoji: string; count: number }[];
 }
 
 export interface MessageContact {

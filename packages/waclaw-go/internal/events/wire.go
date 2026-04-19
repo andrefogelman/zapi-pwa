@@ -29,3 +29,16 @@ type WireEnvelope struct {
 	SessionID string            `json:"session_id"`
 	Message   *WireMessageEvent `json:"message,omitempty"`
 }
+
+// WireReactionEvent is emitted when someone reacts to (or un-reacts from) a
+// message. Clients refresh the target bubble's reaction chip when they see it.
+type WireReactionEvent struct {
+	Type        string `json:"type"` // "reaction"
+	SessionID   string `json:"session_id"`
+	ChatJID     string `json:"chat_jid"`
+	TargetMsgID string `json:"target_msg_id"`
+	ReactorJID  string `json:"reactor_jid"`
+	ReactorLID  string `json:"reactor_lid,omitempty"`
+	Emoji       string `json:"emoji"` // empty = removal
+	Timestamp   int64  `json:"timestamp"`
+}

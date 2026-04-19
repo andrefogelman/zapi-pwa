@@ -51,13 +51,19 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ids := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		ids = append(ids, m.MsgID)
+	}
+	reactions, _ := st.GetReactionsForMessages(jid, ids)
+
 	out := make([]map[string]any, 0, len(msgs))
 	for _, m := range msgs {
 		var mediaURL any
 		if m.MediaType != "" {
 			mediaURL = "media/" + url.PathEscape(m.ChatJID) + "/" + url.PathEscape(m.MsgID)
 		}
-		out = append(out, map[string]any{
+		row := map[string]any{
 			"id":           m.MsgID,
 			"chatJid":      m.ChatJID,
 			"chatName":     m.ChatName,
@@ -72,7 +78,11 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 			"filename":     m.Filename,
 			"mimeType":     m.MimeType,
 			"downloaded":   m.DownloadedAt > 0,
-		})
+		}
+		if r, ok := reactions[m.MsgID]; ok && len(r) > 0 {
+			row["reactions"] = r
+		}
+		out = append(out, row)
 	}
 	s.writeJSON(w, http.StatusOK, out)
 }

@@ -68,6 +68,16 @@ func TranslateMessage(in TranslateInput) (Event, error) {
 	return Event{Type: "message", Raw: raw}, nil
 }
 
+// TranslateReaction converts a WireReactionEvent into a bus Event.
+func TranslateReaction(r WireReactionEvent) (Event, error) {
+	r.Type = "reaction"
+	raw, err := json.Marshal(r)
+	if err != nil {
+		return Event{}, fmt.Errorf("translate reaction: %w", err)
+	}
+	return Event{Type: "reaction", Raw: raw}, nil
+}
+
 // jidUserPart returns the user part of a JID (before the '@').
 // If there is no '@', the full string is returned.
 func jidUserPart(jid string) string {
