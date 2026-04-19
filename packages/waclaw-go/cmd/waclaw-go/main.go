@@ -51,7 +51,7 @@ func main() {
 func run(ctx context.Context, cfg config.Config) error {
 	bus := waevents.NewBus()
 
-	mediaJobs := make(chan session.MediaJob, 512)
+	mediaJobs := make(chan session.MediaJob, 20000)
 
 	mediaBaseURL := fmt.Sprintf("http://%s:%d", localHostOrBind(cfg), cfg.Port)
 

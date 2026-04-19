@@ -176,6 +176,39 @@ func (s *Store) GetSyncStats() (SyncStats, error) {
 }
 
 // UpdateLocalPath records that a message's media has been downloaded.
+// GetPendingMediaDownloads returns messages that have media metadata but no
+// local file yet. Used to re-enqueue downloads that were dropped from the
+// in-memory media queue (e.g., during a history-sync burst that filled the
+// channel) so the pipeline is eventually consistent.
+func (s *Store) GetPendingMediaDownloads(limit int) ([]Message, error) {
+	if limit <= 0 {
+		limit = 500
+	}
+	rows, err := s.db.Query(`
+		SELECT chat_jid, msg_id
+		FROM messages
+		WHERE media_type != ''
+		  AND (local_path IS NULL OR local_path = '')
+		  AND direct_path IS NOT NULL AND direct_path != ''
+		  AND media_key IS NOT NULL AND length(media_key) > 0
+		ORDER BY ts DESC
+		LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Message
+	for rows.Next() {
+		var m Message
+		if err := rows.Scan(&m.ChatJID, &m.MsgID); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) UpdateLocalPath(chatJID, msgID, localPath string, downloadedAt int64) error {
 	_, err := s.db.Exec(`
 		UPDATE messages SET local_path = ?, downloaded_at = ?

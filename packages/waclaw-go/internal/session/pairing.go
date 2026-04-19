@@ -184,6 +184,9 @@ func (s *Session) buildEventHandler() func(evt interface{}) {
 			// by history sync (legacy `<phone>-<timestamp>` chat IDs show up
 			// as raw JIDs in the UI without this).
 			go s.backfillGroupNames(50)
+			// Re-enqueue media downloads that were dropped on previous runs
+			// when the in-memory queue overflowed during history-sync bursts.
+			go s.rehydratePendingDownloads(2000)
 		case *waevt.GroupInfo:
 			s.handleGroupInfo(v)
 		case *waevt.Disconnected:

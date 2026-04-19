@@ -116,3 +116,37 @@ func (s *Session) backfillGroupNames(maxGroups int) {
 	}
 	s.log.Info().Int("resolved", resolved).Msg("group name backfill done")
 }
+
+// rehydratePendingDownloads re-enqueues media download jobs for messages
+// whose direct_path/media_key were persisted but whose local file is still
+// missing. History-sync bursts can fill the shared media channel past its
+// buffer and legitimate jobs get dropped; this sweep recovers them so the
+// pipeline converges even after a rough start.
+//
+// Staggered at 100ms per enqueue to avoid refilling the channel faster than
+// the 4 workers can drain it.
+func (s *Session) rehydratePendingDownloads(maxJobs int) {
+	if s.store == nil {
+		return
+	}
+	pending, err := s.store.GetPendingMediaDownloads(maxJobs)
+	if err != nil {
+		s.log.Warn().Err(err).Msg("rehydrate: GetPendingMediaDownloads failed")
+		return
+	}
+	if len(pending) == 0 {
+		return
+	}
+	enqueued, dropped := 0, 0
+	for _, m := range pending {
+		job := MediaJob{SessionID: s.ID, ChatJID: m.ChatJID, MsgID: m.MsgID}
+		select {
+		case s.handlerDeps.MediaQueue <- job:
+			enqueued++
+		default:
+			dropped++
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	s.log.Info().Int("enqueued", enqueued).Int("dropped", dropped).Int("pending_total", len(pending)).Msg("media rehydrate done")
+}
