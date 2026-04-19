@@ -45,15 +45,28 @@ func (s *Store) UpsertChat(c Chat) error {
 // src/db.js getChats() exactly, including the COALESCE resolution of
 // display name across groups, contacts, and chat name.
 func (s *Store) GetChats() ([]Chat, error) {
+	// Using a scalar subquery for the contact name (instead of LEFT JOIN) avoids
+	// the cartesian-product bug: the same contact can be stored under both
+	// @s.whatsapp.net and @lid JIDs, and a flat JOIN with OR-conditions would
+	// return the chat twice. The subquery picks the richest contact (full_name
+	// > business_name > push_name), preferring the phone JID when ties occur.
 	rows, err := s.db.Query(`
 		SELECT
 			c.jid,
 			COALESCE(c.lid, '') AS lid,
 			COALESCE(
 				NULLIF(g.name, ''),
-				NULLIF(ct.full_name, ''),
-				NULLIF(ct.business_name, ''),
-				NULLIF(ct.push_name, ''),
+				(SELECT COALESCE(NULLIF(ct.full_name, ''), NULLIF(ct.business_name, ''), NULLIF(ct.push_name, ''))
+				 FROM contacts ct
+				 WHERE ct.jid = c.jid
+				    OR ct.jid = c.lid
+				    OR (c.lid IS NOT NULL AND (ct.lid = c.jid OR ct.lid = c.lid))
+				 ORDER BY
+				   CASE WHEN NULLIF(ct.full_name, '') IS NOT NULL THEN 0 ELSE 1 END,
+				   CASE WHEN NULLIF(ct.business_name, '') IS NOT NULL THEN 0 ELSE 1 END,
+				   CASE WHEN NULLIF(ct.push_name, '') IS NOT NULL THEN 0 ELSE 1 END,
+				   CASE WHEN ct.jid LIKE '%@s.whatsapp.net' THEN 0 ELSE 1 END
+				 LIMIT 1),
 				NULLIF(c.name, ''),
 				c.jid
 			) AS name,
@@ -63,7 +76,6 @@ func (s *Store) GetChats() ([]Chat, error) {
 			(SELECT text FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC LIMIT 1) AS last_message,
 			(SELECT sender_name FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC LIMIT 1) AS last_sender
 		FROM chats c
-		LEFT JOIN contacts ct ON c.jid = ct.jid OR c.jid = ct.lid OR (c.lid IS NOT NULL AND (c.lid = ct.jid OR c.lid = ct.lid))
 		LEFT JOIN groups g ON c.jid = g.jid
 		WHERE c.last_message_ts > 0
 		ORDER BY c.last_message_ts DESC
