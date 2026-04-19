@@ -35,6 +35,12 @@ func (s *Session) handleMessage(evt *waevt.Message) {
 	if s.store == nil {
 		return
 	}
+	// Skip reaction messages — they arrive as standalone messages in whatsmeow
+	// but the UI doesn't aggregate them onto the target bubble yet, so they'd
+	// render as empty bubbles. Drop until proper reaction UI lands.
+	if evt.Message != nil && evt.Message.GetReactionMessage() != nil {
+		return
+	}
 	m := parseLiveMessage(evt)
 	if err := s.store.InsertMessage(m); err != nil {
 		s.log.Error().Err(err).Str("msg_id", m.MsgID).Msg("insert message failed")
@@ -117,6 +123,10 @@ func (s *Session) processHistoryConversation(conv *waHistorySync.Conversation) {
 	for _, hsMsg := range conv.GetMessages() {
 		wmi := hsMsg.GetMessage()
 		if wmi == nil {
+			continue
+		}
+		// Skip reactions — same reasoning as live messages above.
+		if wmi.GetMessage() != nil && wmi.GetMessage().GetReactionMessage() != nil {
 			continue
 		}
 		key := wmi.GetKey()
