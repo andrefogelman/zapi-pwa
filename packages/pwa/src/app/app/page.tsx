@@ -21,6 +21,7 @@ import { TaskDetailModal } from "./components/TaskDetailModal";
 import { TaskPickerModal } from "./components/TaskPickerModal";
 import { ChatContextMenu, type ChatAction } from "./components/ChatContextMenu";
 import { ContactInfoModal } from "./components/ContactInfoModal";
+import { MessagePreviewModal } from "./components/MessagePreviewModal";
 
 export default function AppMain() {
   const { session, signOut } = useAuth();
@@ -38,6 +39,7 @@ export default function AppMain() {
   const [linkMsgPickerOpen, setLinkMsgPickerOpen] = useState<Message | null>(null);
   const [chatMenu, setChatMenu] = useState<{ chat: Chat; x: number; y: number } | null>(null);
   const [infoChat, setInfoChat] = useState<Chat | null>(null);
+  const [previewMsg, setPreviewMsg] = useState<Message | null>(null);
 
   const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask, loadTasks } = useTasks();
   const {
@@ -419,6 +421,7 @@ export default function AppMain() {
             onOpenSchedule={() => setScheduleOpen(true)}
             onLinkToTask={() => setLinkChatPickerOpen(true)}
             onLinkMsgToTask={(msg) => setLinkMsgPickerOpen(msg)}
+            onPreviewMsg={(msg) => setPreviewMsg(msg)}
             taskCount={chatTaskCount}
             initialLoad={initialLoad}
           />
@@ -537,6 +540,10 @@ export default function AppMain() {
           sessionId={sessionId}
           onClose={() => setInfoChat(null)}
         />
+      )}
+
+      {previewMsg && (
+        <MessagePreviewModal msg={previewMsg} onClose={() => setPreviewMsg(null)} />
       )}
     </div>
   );

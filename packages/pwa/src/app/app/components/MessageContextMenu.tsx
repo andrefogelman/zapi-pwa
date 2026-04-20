@@ -14,12 +14,13 @@ interface Props {
   onToggleStar: (msgId: string) => Promise<void>;
   onDelete: (msg: Message) => Promise<void>;
   onLinkToTask: (msg: Message) => void;
+  onPreview: (msg: Message) => void;
 }
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 export function MessageContextMenu({
-  msg, x, y, onClose, onReply, onForward, onReact, onToggleStar, onDelete, onLinkToTask,
+  msg, x, y, onClose, onReply, onForward, onReact, onToggleStar, onDelete, onLinkToTask, onPreview,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [showReactions, setShowReactions] = useState(false);
@@ -152,6 +153,13 @@ export function MessageContextMenu({
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
     >
+      <button className="wa-ctx-item" onClick={() => { onPreview(msg); onClose(); }}>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+        </svg>
+        Preview do conteúdo
+      </button>
+
       <button className="wa-ctx-item" onClick={handleReply}>
         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
           <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>

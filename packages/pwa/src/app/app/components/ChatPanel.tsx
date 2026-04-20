@@ -28,6 +28,7 @@ interface Props {
   onOpenSchedule: () => void;
   onLinkToTask: () => void;
   onLinkMsgToTask: (msg: Message) => void;
+  onPreviewMsg: (msg: Message) => void;
   taskCount: number;
   initialLoad: React.MutableRefObject<boolean>;
 }
@@ -36,7 +37,7 @@ export function ChatPanel({
   chat, messages, loading, loadingOlder, hasOlder, sending,
   replyTarget, onLoadOlder, onSend, onSendFile, onReply, onForward,
   onReact, onToggleStar, onDelete,
-  onCancelReply, onBack, onOpenSummary, onOpenSchedule, onLinkToTask, onLinkMsgToTask, taskCount, initialLoad,
+  onCancelReply, onBack, onOpenSummary, onOpenSchedule, onLinkToTask, onLinkMsgToTask, onPreviewMsg, taskCount, initialLoad,
 }: Props) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -162,6 +163,7 @@ export function ChatPanel({
                 onToggleStar={onToggleStar}
                 onDelete={onDelete}
                 onLinkToTask={onLinkMsgToTask}
+                onPreview={onPreviewMsg}
               />
             ))}
           </div>

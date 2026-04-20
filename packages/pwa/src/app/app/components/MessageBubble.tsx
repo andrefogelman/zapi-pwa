@@ -22,6 +22,7 @@ interface Props {
   onToggleStar: (msgId: string) => Promise<void>;
   onDelete: (msg: Message) => Promise<void>;
   onLinkToTask: (msg: Message) => void;
+  onPreview: (msg: Message) => void;
 }
 
 function StatusTicks({ msg }: { msg: Message }) {
@@ -48,7 +49,7 @@ function StatusTicks({ msg }: { msg: Message }) {
   );
 }
 
-export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onToggleStar, onDelete, onLinkToTask }: Props) {
+export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onToggleStar, onDelete, onLinkToTask, onPreview }: Props) {
   const time = formatMsgTime(msg.timestamp);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
@@ -203,6 +204,7 @@ export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onTog
           onToggleStar={onToggleStar}
           onDelete={onDelete}
           onLinkToTask={onLinkToTask}
+          onPreview={onPreview}
         />
       )}
     </>
