@@ -153,21 +153,11 @@ func (s *Store) GetChats() ([]Chat, error) {
 			COALESCE(c.manual_unread, 0) AS manual_unread,
 			COALESCE(c.muted_until, 0) AS muted_until,
 			COALESCE((SELECT ct.blocked FROM contacts ct WHERE ct.jid = c.jid OR ct.jid = c.lid LIMIT 1), 0) AS blocked,
-			COALESCE(mc.msg_count, 0) AS msg_count,
-			lm.text AS last_message,
-			lm.sender_name AS last_sender
+			(SELECT COUNT(*) FROM messages m WHERE m.chat_jid = c.jid) AS msg_count,
+			(SELECT text FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC, rowid DESC LIMIT 1) AS last_message,
+			(SELECT sender_name FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC, rowid DESC LIMIT 1) AS last_sender
 		FROM chats c
 		LEFT JOIN groups g ON c.jid = g.jid
-		-- One pass over messages grouped by chat_jid replaces 3 scalar
-		-- subqueries per row (msg_count, last_message, last_sender).
-		LEFT JOIN (
-			SELECT chat_jid,
-			       COUNT(*) AS msg_count,
-			       MAX(ts)  AS max_ts
-			FROM messages
-			GROUP BY chat_jid
-		) mc ON mc.chat_jid = c.jid
-		LEFT JOIN messages lm ON lm.chat_jid = mc.chat_jid AND lm.ts = mc.max_ts
 		WHERE c.last_message_ts > 0 AND COALESCE(c.archived, 0) = 0
 		ORDER BY COALESCE(c.pinned, 0) DESC, c.last_message_ts DESC
 	`)
