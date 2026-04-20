@@ -25,7 +25,7 @@ import { MessagePreviewModal } from "./components/MessagePreviewModal";
 
 export default function AppMain() {
   const { session, signOut } = useAuth();
-  const { instances, loading: instLoading, reload, createWaclaw, remove, rename } = useInstances();
+  const { instances, loading: instLoading, reload, createWaclaw, remove, rename, reorder: reorderInstances } = useInstances();
   const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -436,6 +436,7 @@ export default function AppMain() {
         onCreate={createWaclaw}
         onDelete={remove}
         onRename={rename}
+        onReorder={reorderInstances}
         onReload={reload}
       />
 

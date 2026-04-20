@@ -11,12 +11,38 @@ export async function GET(request: Request) {
   const supabase = getSupabaseServer();
   const { data, error } = await supabase
     .from("instances")
-    .select("id, name, zapi_instance_id, status, connected_phone, provider, waclaw_session_id, created_at")
+    .select("id, name, zapi_instance_id, status, connected_phone, provider, waclaw_session_id, sort_order, created_at")
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json(data);
+}
+
+// PATCH /api/instances — reorder. Body: { order: string[] } (ids in new order).
+export async function PATCH(request: Request) {
+  const token = request.headers.get("Authorization")?.replace("Bearer ", "");
+  if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getUserFromToken(token);
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { order } = await request.json();
+  if (!Array.isArray(order)) {
+    return Response.json({ error: "order array required" }, { status: 400 });
+  }
+
+  const supabase = getSupabaseServer();
+  // Issue one UPDATE per id — tiny N (usually ≤ 10), not worth a bulk-RPC.
+  for (let i = 0; i < order.length; i++) {
+    const { error } = await supabase
+      .from("instances")
+      .update({ sort_order: i })
+      .eq("id", order[i])
+      .eq("user_id", user.id);
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+  }
+  return Response.json({ ok: true });
 }
 
 export async function POST(request: Request) {

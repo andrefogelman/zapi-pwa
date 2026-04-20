@@ -13,6 +13,7 @@ interface Props {
   onCreate: (name: string) => Promise<Instance | null>;
   onDelete: (id: string) => Promise<boolean>;
   onRename: (id: string, name: string) => Promise<boolean>;
+  onReorder?: (order: string[]) => Promise<void>;
   onReload: () => Promise<void>;
 }
 
@@ -33,7 +34,7 @@ interface FetchedGroup {
 }
 
 export function SettingsModal({
-  open, onClose, instances, activeInstanceId, onCreate, onDelete, onRename, onReload,
+  open, onClose, instances, activeInstanceId, onCreate, onDelete, onRename, onReorder, onReload,
 }: Props) {
   const { session } = useAuth();
   const [tab, setTab] = useState<Tab>("instancias");
@@ -359,10 +360,43 @@ export function SettingsModal({
                   Nenhuma instância ainda. Adicione uma para começar.
                 </div>
               )}
-              {instances.map((inst) => (
+              {instances.map((inst, idx) => (
                 <div key={inst.id} className="wa-settings-item">
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, marginRight: 8 }}>
+                    <button
+                      className="wa-settings-btn"
+                      style={{ padding: "2px 6px", fontSize: 12, opacity: idx === 0 ? 0.3 : 1 }}
+                      disabled={idx === 0}
+                      onClick={() => {
+                        const ids = instances.map((i) => i.id);
+                        [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
+                        onReorder?.(ids);
+                      }}
+                      title="Mover para cima"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      className="wa-settings-btn"
+                      style={{ padding: "2px 6px", fontSize: 12, opacity: idx === instances.length - 1 ? 0.3 : 1 }}
+                      disabled={idx === instances.length - 1}
+                      onClick={() => {
+                        const ids = instances.map((i) => i.id);
+                        [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
+                        onReorder?.(ids);
+                      }}
+                      title="Mover para baixo"
+                    >
+                      ↓
+                    </button>
+                  </div>
                   <div className="wa-settings-info">
                     <div className="wa-settings-name">
+                      {idx === 0 && (
+                        <span style={{ fontSize: 10, color: "#00a884", fontWeight: 600, marginRight: 6, verticalAlign: "middle" }}>
+                          PADRÃO
+                        </span>
+                      )}
                       <RenameField
                         value={inst.name}
                         onSave={(v) => onRename(inst.id, v)}

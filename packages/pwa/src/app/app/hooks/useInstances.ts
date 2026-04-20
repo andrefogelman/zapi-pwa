@@ -11,6 +11,7 @@ export interface Instance {
   waclaw_session_id: string | null;
   status: string;
   connected_phone: string | null;
+  sort_order?: number;
 }
 
 export function useInstances() {
@@ -72,5 +73,22 @@ export function useInstances() {
     return res.ok;
   }, [authHeaders, reload]);
 
-  return { instances, loading, reload, createWaclaw, remove, rename };
+  const reorder = useCallback(
+    async (newOrder: string[]) => {
+      if (!session?.access_token) return;
+      // Optimistic local reorder for instant feedback.
+      setInstances((prev) => {
+        const byId = new Map(prev.map((i) => [i.id, i]));
+        return newOrder.map((id) => byId.get(id)!).filter(Boolean) as Instance[];
+      });
+      await fetch("/api/instances", {
+        method: "PATCH",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ order: newOrder }),
+      });
+    },
+    [session?.access_token, authHeaders],
+  );
+
+  return { instances, loading, reload, createWaclaw, remove, rename, reorder };
 }
