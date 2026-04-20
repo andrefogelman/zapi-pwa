@@ -62,23 +62,31 @@ func (s *Store) InsertMessage(m Message) error {
 func (s *Store) GetMessagesByChat(chatJID string, limit int, beforeTs, afterTs int64) ([]Message, error) {
 	var rows *sql.Rows
 	var err error
+	// notEmpty filters out ghost rows created by protocol messages we don't
+	// render (edits, poll votes, unwrapped reactions, etc.) — they'd show up
+	// as empty bubbles with just the sender name.
+	const notEmpty = ` AND (
+		(text IS NOT NULL AND text != '')
+		OR (display_text IS NOT NULL AND display_text != '')
+		OR (media_type IS NOT NULL AND media_type != '')
+	)`
 	switch {
 	case afterTs > 0:
 		rows, err = s.db.Query(`
 			SELECT `+messageCols+` FROM messages
-			WHERE chat_jid = ? AND ts > ?
+			WHERE chat_jid = ? AND ts > ?`+notEmpty+`
 			ORDER BY ts ASC LIMIT ?`,
 			chatJID, afterTs, limit)
 	case beforeTs > 0:
 		rows, err = s.db.Query(`
 			SELECT `+messageCols+` FROM messages
-			WHERE chat_jid = ? AND ts < ?
+			WHERE chat_jid = ? AND ts < ?`+notEmpty+`
 			ORDER BY ts DESC LIMIT ?`,
 			chatJID, beforeTs, limit)
 	default:
 		rows, err = s.db.Query(`
 			SELECT `+messageCols+` FROM messages
-			WHERE chat_jid = ?
+			WHERE chat_jid = ?`+notEmpty+`
 			ORDER BY ts DESC LIMIT ?`,
 			chatJID, limit)
 	}

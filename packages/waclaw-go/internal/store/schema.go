@@ -13,3 +13,6 @@ var migration0003 string
 
 //go:embed migrations/0004_reactions.sql
 var migration0004 string
+
+//go:embed migrations/0005_archived.sql
+var migration0005 string

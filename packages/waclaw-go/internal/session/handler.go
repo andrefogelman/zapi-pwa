@@ -124,6 +124,10 @@ func (s *Session) handleHistorySync(evt *waevt.HistorySync) {
 func (s *Session) processHistoryConversation(conv *waHistorySync.Conversation) {
 	chatJID := conv.GetID()
 	chatName := conv.GetName()
+	// Reflect the WhatsApp archived flag so GetChats can hide the chat.
+	if s.store != nil {
+		_ = s.store.SetChatArchived(chatJID, conv.GetArchived())
+	}
 	for _, hsMsg := range conv.GetMessages() {
 		wmi := hsMsg.GetMessage()
 		if wmi == nil {

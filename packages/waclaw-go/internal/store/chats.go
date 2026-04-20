@@ -20,6 +20,18 @@ type Chat struct {
 	IsGroup     bool
 }
 
+// SetChatArchived marks a chat as archived or un-archived. Archived chats
+// are hidden from the main list by GetChats. Called from history-sync when
+// whatsmeow surfaces the WhatsApp user's archive state.
+func (s *Store) SetChatArchived(jid string, archived bool) error {
+	v := 0
+	if archived {
+		v = 1
+	}
+	_, err := s.db.Exec(`UPDATE chats SET archived = ? WHERE jid = ?`, v, jid)
+	return err
+}
+
 // UpsertChat inserts or updates a single chat row keyed by JID.
 // LastMessageTs is only updated if the new value is greater than the
 // existing one, so a race between InsertMessage and UpsertChat cannot
@@ -77,7 +89,7 @@ func (s *Store) GetChats() ([]Chat, error) {
 			(SELECT sender_name FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC LIMIT 1) AS last_sender
 		FROM chats c
 		LEFT JOIN groups g ON c.jid = g.jid
-		WHERE c.last_message_ts > 0
+		WHERE c.last_message_ts > 0 AND COALESCE(c.archived, 0) = 0
 		ORDER BY c.last_message_ts DESC
 	`)
 	if err != nil {
