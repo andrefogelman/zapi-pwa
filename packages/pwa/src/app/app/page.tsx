@@ -19,6 +19,7 @@ import { TaskListPanel } from "./components/TaskListPanel";
 import { TaskCreateModal } from "./components/TaskCreateModal";
 import { TaskDetailModal } from "./components/TaskDetailModal";
 import { TaskPickerModal } from "./components/TaskPickerModal";
+import { ChatContextMenu, type ChatAction } from "./components/ChatContextMenu";
 
 export default function AppMain() {
   const { session, signOut } = useAuth();
@@ -34,6 +35,7 @@ export default function AppMain() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [linkChatPickerOpen, setLinkChatPickerOpen] = useState(false);
   const [linkMsgPickerOpen, setLinkMsgPickerOpen] = useState<Message | null>(null);
+  const [chatMenu, setChatMenu] = useState<{ chat: Chat; x: number; y: number } | null>(null);
 
   const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask, loadTasks } = useTasks();
   const {
@@ -124,8 +126,50 @@ export default function AppMain() {
   );
   const sessionId = activeInstance?.waclaw_session_id || null;
 
-  const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, markAsRead } = useChats(sessionId);
+  const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, markAsRead, reloadChats } = useChats(sessionId);
   const { fetcher } = useWaclaw(sessionId);
+
+  async function handleChatAction(action: ChatAction, chat: Chat) {
+    if (!sessionId || !session?.access_token) return;
+    const base = `/api/waclaw/sessions/${sessionId}/chats/${encodeURIComponent(chat.jid)}`;
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    };
+    try {
+      switch (action) {
+        case "markUnread":
+          await fetch(base, { method: "PATCH", headers, body: JSON.stringify({ manualUnread: true }) });
+          break;
+        case "markRead":
+          await fetch(base, { method: "PATCH", headers, body: JSON.stringify({ manualUnread: false }) });
+          markAsRead(chat.jid);
+          break;
+        case "pin":
+          await fetch(base, { method: "PATCH", headers, body: JSON.stringify({ pinned: true }) });
+          break;
+        case "unpin":
+          await fetch(base, { method: "PATCH", headers, body: JSON.stringify({ pinned: false }) });
+          break;
+        case "archive":
+          await fetch(base, { method: "PATCH", headers, body: JSON.stringify({ archived: true }) });
+          if (selectedChat?.jid === chat.jid) setSelectedChat(null);
+          break;
+        case "clear":
+          if (!confirm(`Limpar todas as mensagens de "${chat.name}"?`)) return;
+          await fetch(`${base}?clearOnly=true`, { method: "DELETE", headers });
+          break;
+        case "delete":
+          if (!confirm(`Apagar a conversa "${chat.name}"?`)) return;
+          await fetch(base, { method: "DELETE", headers });
+          if (selectedChat?.jid === chat.jid) setSelectedChat(null);
+          break;
+      }
+      reloadChats();
+    } catch (err) {
+      console.error("chat action failed", action, err);
+    }
+  }
 
   async function handleReact(msg: Message, emoji: string) {
     const senderJid = msg.senderJid || (msg.fromMe ? msg.chatJid : msg.chatJid);
@@ -276,6 +320,7 @@ export default function AppMain() {
         tabCounts={tabCounts}
         selectedJid={selectedChat?.jid || null}
         onSelectChat={handleSelectChat}
+        onChatContextMenu={(chat, x, y) => setChatMenu({ chat, x, y })}
         userEmail={session?.user?.email || ""}
         onSignOut={() => { signOut(); window.location.href = "/login"; }}
         onOpenTasks={() => { setTasksMode(true); setSelectedChat(null); }}
@@ -416,6 +461,16 @@ export default function AppMain() {
         }}
         onClose={() => setLinkMsgPickerOpen(null)}
       />
+
+      {chatMenu && (
+        <ChatContextMenu
+          chat={chatMenu.chat}
+          x={chatMenu.x}
+          y={chatMenu.y}
+          onClose={() => setChatMenu(null)}
+          onAction={handleChatAction}
+        />
+      )}
     </div>
   );
 }

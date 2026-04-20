@@ -23,6 +23,7 @@ interface Props {
   tabCounts: Record<ChatTab, number>;
   selectedJid: string | null;
   onSelectChat: (chat: Chat) => void;
+  onChatContextMenu?: (chat: Chat, x: number, y: number) => void;
   userEmail: string;
   onSignOut: () => void;
   onOpenTasks: () => void;
@@ -50,6 +51,7 @@ export function Sidebar({
   tabCounts,
   selectedJid,
   onSelectChat,
+  onChatContextMenu,
   userEmail,
   onSignOut,
   onOpenTasks,
@@ -99,6 +101,26 @@ export function Sidebar({
             <path d="M15.009 13.805h-.636l-.22-.219a5.184 5.184 0 001.256-3.386 5.207 5.207 0 10-5.207 5.208 5.183 5.183 0 003.385-1.255l.221.22v.635l4.004 3.999 1.194-1.195-3.997-4.007zm-4.808 0a3.605 3.605 0 110-7.21 3.605 3.605 0 010 7.21z"/>
           </svg>
           <input placeholder="Pesquisar" value={search} onChange={(e) => onSearchChange(e.target.value)} />
+          {search && (
+            <button
+              type="button"
+              onClick={() => onSearchChange("")}
+              aria-label="Limpar busca"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#8696a0",
+                cursor: "pointer",
+                padding: "0 4px",
+                fontSize: 18,
+                lineHeight: 1,
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              ×
+            </button>
+          )}
         </div>
       </div>
 
@@ -131,7 +153,13 @@ export function Sidebar({
           <div className="wa-loading">Nenhuma conversa encontrada</div>
         )}
         {chats.map((chat) => (
-          <ChatItem key={chat.jid} chat={chat} selected={chat.jid === selectedJid} onClick={() => onSelectChat(chat)} />
+          <ChatItem
+            key={chat.jid}
+            chat={chat}
+            selected={chat.jid === selectedJid}
+            onClick={() => onSelectChat(chat)}
+            onContextMenu={onChatContextMenu}
+          />
         ))}
       </div>
 

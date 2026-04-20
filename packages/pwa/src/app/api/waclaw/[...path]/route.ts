@@ -58,3 +58,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ p
   const { path } = await params;
   return proxyToWaclaw(request, path.join("/"));
 }
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ path: string[] }> }) {
+  const { path } = await params;
+  return proxyToWaclaw(request, path.join("/"));
+}

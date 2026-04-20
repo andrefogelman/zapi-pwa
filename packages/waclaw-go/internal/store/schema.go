@@ -16,3 +16,6 @@ var migration0004 string
 
 //go:embed migrations/0005_archived.sql
 var migration0005 string
+
+//go:embed migrations/0006_chat_flags.sql
+var migration0006 string

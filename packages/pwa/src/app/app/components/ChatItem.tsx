@@ -1,4 +1,6 @@
-import { useState } from "react";
+"use client";
+
+import { useRef, useState } from "react";
 import { formatChatName, formatChatTime, getInitials, avatarColor } from "../lib/formatters";
 import type { Chat } from "../hooks/useChats";
 
@@ -6,10 +8,15 @@ interface Props {
   chat: Chat;
   selected: boolean;
   onClick: () => void;
+  onContextMenu?: (chat: Chat, x: number, y: number) => void;
 }
 
-export function ChatItem({ chat, selected, onClick }: Props) {
+const LONG_PRESS_MS = 450;
+
+export function ChatItem({ chat, selected, onClick, onContextMenu }: Props) {
   const [imgError, setImgError] = useState(false);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressClick = useRef(false);
   const displayName = formatChatName(chat.jid, chat.name);
   const initials = getInitials(displayName);
   const bgColor = avatarColor(chat.jid);
@@ -21,8 +28,44 @@ export function ChatItem({ chat, selected, onClick }: Props) {
     chat.isUnread && "has-unread",
   ].filter(Boolean).join(" ");
 
+  function handleContextMenu(e: React.MouseEvent) {
+    if (!onContextMenu) return;
+    e.preventDefault();
+    onContextMenu(chat, e.clientX, e.clientY);
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    if (!onContextMenu) return;
+    const t = e.touches[0];
+    pressTimer.current = setTimeout(() => {
+      suppressClick.current = true;
+      onContextMenu(chat, t.clientX, t.clientY);
+    }, LONG_PRESS_MS);
+  }
+  function cancelPress() {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  }
+  function handleClick() {
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
+    onClick();
+  }
+
   return (
-    <div className={classes} onClick={onClick}>
+    <div
+      className={classes}
+      onClick={handleClick}
+      onContextMenu={handleContextMenu}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={cancelPress}
+      onTouchMove={cancelPress}
+      onTouchCancel={cancelPress}
+    >
       <div className={`wa-avatar ${chat.isGroup ? "group" : ""}`}>
         {hasAvatar ? (
           <img src={chat.profilePicUrl!} alt="" onError={() => setImgError(true)} />
@@ -34,7 +77,10 @@ export function ChatItem({ chat, selected, onClick }: Props) {
       </div>
       <div className="wa-chat-body">
         <div className="wa-chat-row">
-          <span className="wa-chat-name">{displayName}</span>
+          <span className="wa-chat-name">
+            {chat.pinned && <span style={{ marginRight: 4, color: "#8696a0" }}>📌</span>}
+            {displayName}
+          </span>
           <span className="wa-chat-time">{formatChatTime(chat.lastTs)}</span>
         </div>
         <div className="wa-chat-row">

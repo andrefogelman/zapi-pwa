@@ -12,6 +12,8 @@ type Chat struct {
 	Kind          string // dm | group | broadcast | unknown
 	Name          string
 	LastMessageTs int64
+	Pinned        bool
+	ManualUnread  bool
 
 	// Read-only fields populated by GetChats:
 	LastMessage string
@@ -30,6 +32,60 @@ func (s *Store) SetChatArchived(jid string, archived bool) error {
 	}
 	_, err := s.db.Exec(`UPDATE chats SET archived = ? WHERE jid = ?`, v, jid)
 	return err
+}
+
+// SetChatPinned pins a chat to the top of the list (or un-pins).
+func (s *Store) SetChatPinned(jid string, pinned bool) error {
+	v := 0
+	if pinned {
+		v = 1
+	}
+	_, err := s.db.Exec(`UPDATE chats SET pinned = ? WHERE jid = ?`, v, jid)
+	return err
+}
+
+// SetChatManualUnread flags a chat as unread even though the user opened it.
+// Overrides the read-tracking on the client.
+func (s *Store) SetChatManualUnread(jid string, unread bool) error {
+	v := 0
+	if unread {
+		v = 1
+	}
+	_, err := s.db.Exec(`UPDATE chats SET manual_unread = ? WHERE jid = ?`, v, jid)
+	return err
+}
+
+// ClearChatMessages deletes all messages of a chat but keeps the chat row.
+// Used by "Clear chat" in the context menu.
+func (s *Store) ClearChatMessages(jid string) error {
+	_, err := s.db.Exec(`DELETE FROM messages WHERE chat_jid = ?`, jid)
+	return err
+}
+
+// DeleteChat removes the chat row and all its messages, reactions, and group
+// participant rows. Used by "Delete chat" in the context menu.
+func (s *Store) DeleteChat(jid string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM messages WHERE chat_jid = ?`, jid); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM reactions WHERE chat_jid = ?`, jid); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM group_participants WHERE group_jid = ?`, jid); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM groups WHERE jid = ?`, jid); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM chats WHERE jid = ?`, jid); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // UpsertChat inserts or updates a single chat row keyed by JID.
@@ -84,13 +140,15 @@ func (s *Store) GetChats() ([]Chat, error) {
 			) AS name,
 			c.kind,
 			c.last_message_ts,
+			COALESCE(c.pinned, 0) AS pinned,
+			COALESCE(c.manual_unread, 0) AS manual_unread,
 			(SELECT COUNT(*) FROM messages m WHERE m.chat_jid = c.jid) AS msg_count,
 			(SELECT text FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC LIMIT 1) AS last_message,
 			(SELECT sender_name FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC LIMIT 1) AS last_sender
 		FROM chats c
 		LEFT JOIN groups g ON c.jid = g.jid
 		WHERE c.last_message_ts > 0 AND COALESCE(c.archived, 0) = 0
-		ORDER BY c.last_message_ts DESC
+		ORDER BY COALESCE(c.pinned, 0) DESC, c.last_message_ts DESC
 	`)
 	if err != nil {
 		return nil, err
@@ -101,9 +159,12 @@ func (s *Store) GetChats() ([]Chat, error) {
 	for rows.Next() {
 		var c Chat
 		var lastMsg, lastSender sql.NullString
-		if err := rows.Scan(&c.JID, &c.LID, &c.Name, &c.Kind, &c.LastMessageTs, &c.MsgCount, &lastMsg, &lastSender); err != nil {
+		var pinned, manualUnread int
+		if err := rows.Scan(&c.JID, &c.LID, &c.Name, &c.Kind, &c.LastMessageTs, &pinned, &manualUnread, &c.MsgCount, &lastMsg, &lastSender); err != nil {
 			return nil, err
 		}
+		c.Pinned = pinned != 0
+		c.ManualUnread = manualUnread != 0
 		c.LastMessage = lastMsg.String
 		c.LastSender = lastSender.String
 		c.IsGroup = c.Kind == "group"

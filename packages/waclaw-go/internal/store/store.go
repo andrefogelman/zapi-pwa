@@ -117,9 +117,19 @@ func (s *Store) migrate() error {
 	if err := s.execMultiStatement(migration0005); err != nil {
 		return fmt.Errorf("apply 0005: %w", err)
 	}
-	_, err := s.db.Exec(
+	if _, err := s.db.Exec(
 		`INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, strftime('%s','now'))`,
 		5, "0005_archived",
+	); err != nil {
+		return err
+	}
+
+	if err := s.execMultiStatement(migration0006); err != nil {
+		return fmt.Errorf("apply 0006: %w", err)
+	}
+	_, err := s.db.Exec(
+		`INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, strftime('%s','now'))`,
+		6, "0006_chat_flags",
 	)
 	return err
 }

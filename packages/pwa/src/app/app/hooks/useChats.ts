@@ -19,6 +19,8 @@ export interface Chat {
   profilePicUrl: string | null;
   hasAvatar: boolean;
   isUnread: boolean;
+  pinned: boolean;
+  manualUnread: boolean;
 }
 
 // localStorage key for last-read timestamp per chat
@@ -34,7 +36,7 @@ export function useChats(sessionId: string | null) {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<ChatTab>("all");
 
-  useEffect(() => {
+  const reloadChats = useCallback(() => {
     if (!ready) return;
     setLoading(true);
     fetcher("chats").then((data) => {
@@ -70,6 +72,8 @@ export function useChats(sessionId: string | null) {
           const lastTs = (c.lastTs as number) || 0;
           const stored = sessionId ? localStorage.getItem(readKey(sessionId, jid)) : null;
           const lastReadTs = stored ? parseInt(stored, 10) : 0;
+          const pinned = Boolean(c.pinned);
+          const manualUnread = Boolean(c.manualUnread);
           return {
             jid,
             lid: (c.lid as string) || null,
@@ -83,13 +87,19 @@ export function useChats(sessionId: string | null) {
             tab: getChatTab((c.kind as string) || "unknown", jid),
             profilePicUrl,
             hasAvatar,
-            isUnread: lastTs > lastReadTs,
+            isUnread: manualUnread || lastTs > lastReadTs,
+            pinned,
+            manualUnread,
           };
         }));
       }
       setLoading(false);
     });
-  }, [ready, session?.access_token, sessionId]);
+  }, [ready, fetcher, session?.access_token, sessionId]);
+
+  useEffect(() => {
+    reloadChats();
+  }, [reloadChats]);
 
   const filtered = useMemo(() => {
     let result = allChats;
@@ -124,5 +134,5 @@ export function useChats(sessionId: string | null) {
     );
   }, [sessionId]);
 
-  return { chats: filtered, loading, search, setSearch, activeTab, setActiveTab, tabCounts, markAsRead };
+  return { chats: filtered, loading, search, setSearch, activeTab, setActiveTab, tabCounts, markAsRead, reloadChats };
 }
