@@ -78,7 +78,12 @@ export function useTaskConversationMessages(
     }
 
     loadAll();
-    const interval = setInterval(loadAll, 30000);
+    // Double-guard: setInterval is cleared on unmount/dep-change, but also
+    // bail out inside the callback if the tab hid or active flipped.
+    const interval = setInterval(() => {
+      if (document.hidden || !active) return;
+      loadAll();
+    }, 30000);
     return () => {
       cancelled = true;
       clearInterval(interval);

@@ -227,19 +227,8 @@ export default function AppMain() {
   }
 
   async function handleDelete(msg: Message) {
-    const senderJid = msg.senderJid || msg.chatJid;
-    const result = await fetcher("delete", {
-      method: "POST",
-      body: JSON.stringify({
-        chatJid: msg.chatJid,
-        msgId: msg.id,
-        senderJid,
-        fromMe: msg.fromMe,
-      }),
-    });
-    if (!result?.ok) {
-      throw new Error(result?.error || "Falha ao excluir");
-    }
+    // Optimistic remove + rollback happens inside deleteMessage.
+    await deleteMessage(msg);
   }
 
   async function handleForwardSend(chatJid: string, msg: Message) {
@@ -289,7 +278,7 @@ export default function AppMain() {
   }
   const {
     messages, loading: msgsLoading, loadingOlder, hasOlder, sending,
-    loadMessages, loadOlder, sendMessage, sendFile, toggleStar,
+    loadMessages, loadOlder, sendMessage, sendFile, toggleStar, deleteMessage,
     replyTarget, setReplyTarget, initialLoad,
   } = useMessages(sessionId, selectedChat?.jid || null);
 

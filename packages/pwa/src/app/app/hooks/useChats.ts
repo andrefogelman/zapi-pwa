@@ -125,10 +125,15 @@ export function useChats(sessionId: string | null) {
       result = result.filter((c) =>
         c.name.toLowerCase().includes(q) ||
         c.jid.includes(q) ||
-        c.lastMessage?.toLowerCase().includes(q)
+        c.lastMessage?.toLowerCase().includes(q),
       );
     }
-    return result;
+    // Pinned always on top, then chronological. Sort runs against a copy so
+    // the source array stays untouched for other consumers.
+    return [...result].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return b.lastTs - a.lastTs;
+    });
   }, [allChats, activeTab, search]);
 
   // When the user types a search term, also hit waclaw for address-book

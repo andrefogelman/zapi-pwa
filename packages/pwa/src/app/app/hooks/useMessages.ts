@@ -297,6 +297,46 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
     });
   }, [messages.length]);
 
+  // Optimistic delete. Removes from the list immediately, rolls back the
+  // message into its original position if the server rejects the revoke.
+  const deleteMessage = useCallback(async (msg: Message) => {
+    if (!sessionId || !session?.access_token) return;
+    const senderJid = msg.senderJid || msg.chatJid;
+    let restore: { idx: number; msg: Message } | null = null;
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.id === msg.id);
+      if (idx < 0) return prev;
+      restore = { idx, msg: prev[idx] };
+      return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+    });
+    try {
+      const res = await fetch(`/api/waclaw/sessions/${sessionId}/delete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          chatJid: msg.chatJid,
+          msgId: msg.id,
+          senderJid,
+          fromMe: msg.fromMe,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body?.ok) {
+        throw new Error(body?.error || `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      // Restore the message at its original position.
+      if (restore) {
+        const r = restore as { idx: number; msg: Message };
+        setMessages((prev) => [...prev.slice(0, r.idx), r.msg, ...prev.slice(r.idx)]);
+      }
+      throw err;
+    }
+  }, [sessionId, session?.access_token]);
+
   const toggleStar = useCallback(async (msgId: string) => {
     if (!sessionId || !session?.access_token) return;
     const msg = messages.find((m) => m.id === msgId);
@@ -437,17 +477,24 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
     return () => { cancelled = true; };
   }, [messages.length, sessionId, session?.access_token]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keep a ref to the current messages so the polling effect can read the
+  // latest ts without having `messages` in its dep list — re-creating the
+  // interval on every setMessages was causing a runaway loop.
+  const messagesRef = useRef<Message[]>([]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
   // --- Poll for new messages every 3s ---
-  // Uses after=latestTs to fetch only messages newer than what we have.
-  // Deduplicates by msg id and reconciles optimistic local-* messages.
+  // Pauses when tab is hidden so battery/quota aren't burned on background.
   useEffect(() => {
     if (!chatJid || loading) return;
     const POLL_MS = 3000;
-    const id = setInterval(async () => {
-      // Find the latest real (non-optimistic) timestamp
+    let id: ReturnType<typeof setInterval> | null = null;
+
+    const tick = async () => {
+      const current = messagesRef.current;
       let latestTs = 0;
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const m = messages[i];
+      for (let i = current.length - 1; i >= 0; i--) {
+        const m = current[i];
         if (!m.id.startsWith("local-")) {
           latestTs = Math.floor(m.timestamp);
           break;
@@ -466,25 +513,35 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
           .map(enrichMessage)
           .filter((m: Message) => !existingIds.has(m.id));
         if (newMsgs.length === 0) return prev;
-
-        // Remove optimistic local-* messages that the server now confirms
         const cleaned = prev.filter((m) => {
           if (!m.id.startsWith("local-")) return true;
-          // If a server msg arrived from us with close timestamp, replace
           return !newMsgs.some(
-            (n: Message) => n.fromMe && Math.abs(n.timestamp - m.timestamp) < 5
+            (n: Message) => n.fromMe && Math.abs(n.timestamp - m.timestamp) < 5,
           );
         });
-
         return [...cleaned, ...newMsgs];
       });
-    }, POLL_MS);
-    return () => clearInterval(id);
-  }, [chatJid, loading, messages, fetcher, enrichMessage]);
+    };
+
+    const start = () => {
+      if (id == null) id = setInterval(tick, POLL_MS);
+    };
+    const stop = () => {
+      if (id != null) { clearInterval(id); id = null; }
+    };
+    const onVisibility = () => { document.hidden ? stop() : start(); };
+
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [chatJid, loading, fetcher, enrichMessage]);
 
   return {
     messages, loading, loadingOlder, hasOlder, sending,
-    loadMessages, loadOlder, sendMessage, sendFile, toggleStar,
+    loadMessages, loadOlder, sendMessage, sendFile, toggleStar, deleteMessage,
     replyTarget, setReplyTarget,
     initialLoad,
   };

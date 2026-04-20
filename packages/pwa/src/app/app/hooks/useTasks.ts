@@ -251,10 +251,14 @@ export function useTaskDetail(taskId: string | null) {
 
   useEffect(() => { loadDetail(); }, [loadDetail]);
 
-  // Poll comments every 5s when task is open
+  // Poll comments every 5s while the task is actually open. Resolved/closed
+  // tasks don't get new comments and polling them was wasting quota.
   useEffect(() => {
     if (!taskId || !session?.access_token) return;
+    const isActive = task?.status === "open" || task?.status === "in_progress";
+    if (!isActive) return;
     const id = setInterval(async () => {
+      if (document.hidden) return;
       const res = await fetch(`/api/tasks/${taskId}/comments`, { headers: headers() });
       if (res.ok) {
         const data = await res.json();
@@ -262,7 +266,7 @@ export function useTaskDetail(taskId: string | null) {
       }
     }, 5000);
     return () => clearInterval(id);
-  }, [taskId, session?.access_token, headers]);
+  }, [taskId, task?.status, session?.access_token, headers]);
 
   return {
     task, comments, loading, loadDetail,
