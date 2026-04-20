@@ -1,10 +1,16 @@
-import { useState } from "react";
+"use client";
+
+import { useMemo, useState } from "react";
 import { TaskStatusBadge } from "./TaskStatusBadge";
+import { linkify } from "../lib/linkify";
 import type { Task, TaskComment, TaskConversation, TaskMessage, TaskParticipant } from "../hooks/useTasks";
+import type { Instance } from "../hooks/useInstances";
+import { useTaskConversationMessages } from "../hooks/useTaskConversationMessages";
 
 interface Props {
   task: Task | null;
   comments: TaskComment[];
+  instances: Instance[];
   loading: boolean;
   onClose: () => void;
   onUpdateStatus: (status: string) => void;
@@ -25,7 +31,7 @@ function formatTs(iso: string | null) {
 const STATUS_FLOW = ["open", "in_progress", "resolved", "closed"];
 
 export function TaskDetailModal({
-  task, comments, loading, onClose,
+  task, comments, instances, loading, onClose,
   onUpdateStatus, onAddComment,
   onRemoveParticipant, onRemoveConversation, onUnpinMessage, onNavigateToChat, onDelete,
 }: Props) {
@@ -34,11 +40,18 @@ export function TaskDetailModal({
   const [activeTab, setActiveTab] = useState<"thread" | "links">("thread");
   const [expandedMsg, setExpandedMsg] = useState<string | null>(null);
 
-  if (!task) return null;
+  const participants = useMemo(() => (task?.task_participants || []) as TaskParticipant[], [task]);
+  const conversations = useMemo(() => (task?.task_conversations || []) as TaskConversation[], [task]);
+  const messages = useMemo(() => (task?.task_messages || []) as TaskMessage[], [task]);
 
-  const participants = (task.task_participants || []) as TaskParticipant[];
-  const conversations = (task.task_conversations || []) as TaskConversation[];
-  const messages = (task.task_messages || []) as TaskMessage[];
+  const { messages: liveMessages } = useTaskConversationMessages(
+    conversations,
+    instances,
+    task?.status,
+    30,
+  );
+
+  if (!task) return null;
 
   async function handleSendComment() {
     if (!commentInput.trim() || sending) return;
@@ -120,7 +133,7 @@ export function TaskDetailModal({
                 cursor: "pointer",
               }}
             >
-              {tab === "thread" ? `Discussão (${comments.length})` : `Links (${participants.length + conversations.length + messages.length})`}
+              {tab === "thread" ? `Discussão (${comments.length + liveMessages.length})` : `Links (${participants.length + conversations.length + messages.length})`}
             </button>
           ))}
         </div>
@@ -161,30 +174,82 @@ export function TaskDetailModal({
                   </div>
                 )}
 
-                {comments.length === 0 && messages.length === 0 && (
+                {comments.length === 0 && messages.length === 0 && liveMessages.length === 0 && (
                   <div style={{ color: "#8696a0", textAlign: "center", padding: 20, fontSize: 13 }}>
-                    Nenhum comentário ainda. Inicie a discussão.
+                    {conversations.length === 0
+                      ? "Nenhum comentário ainda. Inicie a discussão ou vincule uma conversa."
+                      : "Nenhuma mensagem nas conversas vinculadas."}
                   </div>
                 )}
-                {comments.map((c) => (
-                  <div
-                    key={c.id}
-                    style={{
-                      background: "rgba(255,255,255,0.04)",
-                      borderRadius: 8,
-                      padding: "8px 12px",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                      <span style={{ color: "#00a884", fontSize: 11, fontWeight: 500 }}>
-                        {c.author_id.slice(0, 8)}
-                      </span>
-                      <span style={{ color: "#8696a0", fontSize: 10 }}>{formatTs(c.created_at)}</span>
-                    </div>
-                    <div style={{ color: "#e9edef", fontSize: 13, whiteSpace: "pre-wrap" }}>{c.body}</div>
-                  </div>
-                ))}
+                {(() => {
+                  type Item =
+                    | { kind: "comment"; ts: number; data: TaskComment }
+                    | { kind: "live"; ts: number; data: typeof liveMessages[number] };
+                  const items: Item[] = [
+                    ...comments.map((c) => ({
+                      kind: "comment" as const,
+                      ts: new Date(c.created_at).getTime(),
+                      data: c,
+                    })),
+                    ...liveMessages.map((m) => ({
+                      kind: "live" as const,
+                      ts: m.timestamp < 1e12 ? m.timestamp * 1000 : m.timestamp,
+                      data: m,
+                    })),
+                  ].sort((a, b) => a.ts - b.ts);
+                  return items.map((it, idx) => {
+                    if (it.kind === "comment") {
+                      const c = it.data;
+                      return (
+                        <div
+                          key={`c-${c.id}-${idx}`}
+                          style={{
+                            background: "rgba(255,255,255,0.04)",
+                            borderRadius: 8,
+                            padding: "8px 12px",
+                            marginBottom: 8,
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                            <span style={{ color: "#00a884", fontSize: 11, fontWeight: 500 }}>
+                              {c.author_id.slice(0, 8)}
+                            </span>
+                            <span style={{ color: "#8696a0", fontSize: 10 }}>{formatTs(c.created_at)}</span>
+                          </div>
+                          <div style={{ color: "#e9edef", fontSize: 13, whiteSpace: "pre-wrap" }}>{c.body}</div>
+                        </div>
+                      );
+                    }
+                    const m = it.data;
+                    const when = new Date(it.ts).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+                    const body = m.text || m.mediaCaption || (m.type ? `[${m.type}]` : "");
+                    return (
+                      <div
+                        key={`m-${m.id}-${idx}`}
+                        style={{
+                          background: "rgba(83,189,235,0.06)",
+                          borderLeft: "2px solid rgba(83,189,235,0.5)",
+                          borderRadius: "0 8px 8px 0",
+                          padding: "6px 10px",
+                          marginBottom: 6,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2, gap: 8 }}>
+                          <span style={{ color: "#53bdeb", fontSize: 11, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {m.senderName || "—"}
+                            {m.chatName && (
+                              <span style={{ color: "#8696a0", fontWeight: 400, marginLeft: 6 }}>
+                                em {m.chatName}
+                              </span>
+                            )}
+                          </span>
+                          <span style={{ color: "#8696a0", fontSize: 10, flexShrink: 0 }}>{when}</span>
+                        </div>
+                        <div style={{ color: "#e9edef", fontSize: 13, whiteSpace: "pre-wrap" }}>{linkify(body)}</div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
 
               {/* Comment input */}

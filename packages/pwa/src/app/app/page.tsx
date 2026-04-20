@@ -365,6 +365,7 @@ export default function AppMain() {
       <TaskDetailModal
         task={selectedTask ? taskDetail : null}
         comments={taskComments}
+        instances={instances}
         loading={taskDetailLoading}
         onClose={() => setSelectedTask(null)}
         onUpdateStatus={(status) => {
