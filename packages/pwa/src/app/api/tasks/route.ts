@@ -1,6 +1,17 @@
 export const dynamic = "force-dynamic";
 
 import { getSupabaseServer, getUserFromToken } from "@/lib/supabase-server";
+import { z } from "zod";
+
+const StatusSchema = z.enum(["open", "in_progress", "resolved", "closed"]);
+const PrioritySchema = z.enum(["low", "medium", "high", "urgent"]);
+
+const CreateTaskSchema = z.object({
+  title: z.string().trim().min(1).max(240),
+  description: z.string().max(8_000).nullable().optional(),
+  priority: PrioritySchema.optional(),
+  due_date: z.string().datetime().nullable().optional(),
+});
 
 // GET /api/tasks?status=open&priority=high
 export async function GET(request: Request) {
@@ -11,8 +22,12 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(request.url);
-  const status = url.searchParams.get("status");
-  const priority = url.searchParams.get("priority");
+  const statusRaw = url.searchParams.get("status");
+  const priorityRaw = url.searchParams.get("priority");
+  // Validate against the enum. Invalid values are ignored (404-equivalent)
+  // rather than echoed back into the SQL filter.
+  const status = statusRaw && StatusSchema.safeParse(statusRaw).success ? statusRaw : null;
+  const priority = priorityRaw && PrioritySchema.safeParse(priorityRaw).success ? priorityRaw : null;
 
   const supabase = getSupabaseServer();
 
@@ -63,12 +78,11 @@ export async function POST(request: Request) {
   const user = await getUserFromToken(token);
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json();
-  const { title, description, priority, due_date } = body;
-
-  if (!title?.trim()) {
-    return Response.json({ error: "title is required" }, { status: 400 });
+  const parse = CreateTaskSchema.safeParse(await request.json().catch(() => null));
+  if (!parse.success) {
+    return Response.json({ error: "invalid payload", issues: parse.error.issues }, { status: 400 });
   }
+  const { title, description, priority, due_date } = parse.data;
 
   const supabase = getSupabaseServer();
 
@@ -76,10 +90,10 @@ export async function POST(request: Request) {
     .from("tasks")
     .insert({
       creator_id: user.id,
-      title: title.trim(),
-      description: description || null,
-      priority: priority || "medium",
-      due_date: due_date || null,
+      title,
+      description: description ?? null,
+      priority: priority ?? "medium",
+      due_date: due_date ?? null,
     })
     .select()
     .single();

@@ -1,6 +1,14 @@
 export const dynamic = "force-dynamic";
 import { getSupabaseServer, getUserFromToken } from "@/lib/supabase-server";
 import { env } from "@/lib/env";
+import { z } from "zod";
+
+const CreateInstanceSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+});
+const ReorderSchema = z.object({
+  order: z.array(z.string().uuid()).min(1).max(100),
+});
 
 export async function GET(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "");
@@ -28,10 +36,11 @@ export async function PATCH(request: Request) {
   const user = await getUserFromToken(token);
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { order } = await request.json();
-  if (!Array.isArray(order)) {
-    return Response.json({ error: "order array required" }, { status: 400 });
+  const parse = ReorderSchema.safeParse(await request.json().catch(() => null));
+  if (!parse.success) {
+    return Response.json({ error: "invalid payload", issues: parse.error.issues }, { status: 400 });
   }
+  const { order } = parse.data;
 
   const supabase = getSupabaseServer();
   // Issue one UPDATE per id — tiny N (usually ≤ 10), not worth a bulk-RPC.
@@ -53,8 +62,11 @@ export async function POST(request: Request) {
   const user = await getUserFromToken(token);
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json();
-  const { name } = body;
+  const parsed = CreateInstanceSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return Response.json({ error: "invalid payload", issues: parsed.error.issues }, { status: 400 });
+  }
+  const { name } = parsed.data;
   // New instances are always waclaw. Z-API legacy stays for existing rows only.
   const provider = "waclaw";
 
