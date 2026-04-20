@@ -1,9 +1,7 @@
 import { getUserFromToken } from "@/lib/supabase-server";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
-
-const WACLAW_URL = process.env.WACLAW_URL || "https://worker5.taile4c10f.ts.net";
-const WACLAW_API_KEY = process.env.WACLAW_API_KEY || "waclaw-dev-key";
 
 async function proxyToWaclaw(request: Request, path: string) {
   const url = new URL(request.url);
@@ -21,12 +19,12 @@ async function proxyToWaclaw(request: Request, path: string) {
   const upstreamParams = new URLSearchParams(url.searchParams);
   upstreamParams.delete("token");
   const upstreamSearch = upstreamParams.toString();
-  const targetUrl = `${WACLAW_URL}/${path}${upstreamSearch ? `?${upstreamSearch}` : ""}`;
+  const targetUrl = `${env.WACLAW_URL}/${path}${upstreamSearch ? `?${upstreamSearch}` : ""}`;
 
   const upstream = await fetch(targetUrl, {
     method: request.method,
     headers: {
-      "X-API-Key": WACLAW_API_KEY,
+      "X-API-Key": env.WACLAW_API_KEY,
       ...(request.method !== "GET" && { "Content-Type": "application/json" }),
     },
     body: request.method !== "GET" ? await request.text() : undefined,

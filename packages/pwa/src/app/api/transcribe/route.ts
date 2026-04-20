@@ -2,9 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { getSupabaseServer, getUserFromToken } from "@/lib/supabase-server";
 import { transcribeAudio } from "@/lib/openai";
-
-const WACLAW_URL = process.env.WACLAW_URL || "https://worker5.taile4c10f.ts.net";
-const WACLAW_API_KEY = process.env.WACLAW_API_KEY || "waclaw-dev-key";
+import { env } from "@/lib/env";
 
 // POST /api/transcribe
 // body: { sessionId, msgId, chatJid }
@@ -49,9 +47,9 @@ export async function POST(request: Request) {
   }
 
   // Fetch audio bytes from waclaw (on-demand download handled by waclaw)
-  const mediaUrl = `${WACLAW_URL}/sessions/${sessionId}/media/${encodeURIComponent(chatJid)}/${encodeURIComponent(msgId)}`;
+  const mediaUrl = `${env.WACLAW_URL}/sessions/${sessionId}/media/${encodeURIComponent(chatJid)}/${encodeURIComponent(msgId)}`;
   const mediaRes = await fetch(mediaUrl, {
-    headers: { "X-API-Key": WACLAW_API_KEY },
+    headers: { "X-API-Key": env.WACLAW_API_KEY },
   });
   if (!mediaRes.ok) {
     return Response.json(

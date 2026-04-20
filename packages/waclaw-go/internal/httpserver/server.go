@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/events"
@@ -18,6 +20,46 @@ import (
 
 // startTime records when the process started, used for uptime_seconds in /health.
 var startTime = time.Now()
+
+// corsMiddleware enforces an explicit Origin allowlist. Browser XHRs from any
+// other origin are blocked at the browser (CORS) layer; direct clients still
+// authenticate with X-API-Key in authMiddleware.
+//
+// Origins come from the CORS_ALLOWED_ORIGINS env var (comma-separated). Empty
+// means "no browser origin allowed" — server-to-server calls with X-API-Key
+// are unaffected.
+func corsMiddleware() func(http.Handler) http.Handler {
+	raw := os.Getenv("CORS_ALLOWED_ORIGINS")
+	var allowed []string
+	for _, o := range strings.Split(raw, ",") {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			allowed = append(allowed, o)
+		}
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" {
+				for _, a := range allowed {
+					if a == origin || a == "*" {
+						w.Header().Set("Access-Control-Allow-Origin", origin)
+						w.Header().Set("Vary", "Origin")
+						w.Header().Set("Access-Control-Allow-Credentials", "true")
+						w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+						w.Header().Set("Access-Control-Allow-Headers", "Authorization, X-API-Key, Content-Type")
+						break
+					}
+				}
+			}
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
 
 // Deps groups the external dependencies the HTTP layer needs.
 type Deps struct {
@@ -42,6 +84,7 @@ func New(addr string, deps Deps) *Server {
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
 	r.Use(RequestLogger(deps.Log))
+	r.Use(corsMiddleware())
 
 	s := &Server{
 		mux:  r,

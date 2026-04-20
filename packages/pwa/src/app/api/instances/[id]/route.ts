@@ -1,8 +1,6 @@
 export const dynamic = "force-dynamic";
 import { getSupabaseServer, getUserFromToken } from "@/lib/supabase-server";
-
-const WACLAW_URL = process.env.WACLAW_URL || "https://worker5.taile4c10f.ts.net";
-const WACLAW_API_KEY = process.env.WACLAW_API_KEY || "waclaw-dev-key";
+import { env } from "@/lib/env";
 
 export async function DELETE(
   request: Request,
@@ -34,9 +32,9 @@ export async function DELETE(
   // Supabase delete on network failures — the frontend can retry.
   if (instance.provider === "waclaw" && instance.waclaw_session_id) {
     try {
-      await fetch(`${WACLAW_URL}/sessions/${instance.waclaw_session_id}`, {
+      await fetch(`${env.WACLAW_URL}/sessions/${instance.waclaw_session_id}`, {
         method: "DELETE",
-        headers: { "X-API-Key": WACLAW_API_KEY },
+        headers: { "X-API-Key": env.WACLAW_API_KEY },
       });
     } catch (err) {
       console.error("Failed to delete waclaw session:", err);

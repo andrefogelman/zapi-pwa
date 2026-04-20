@@ -5,8 +5,6 @@ import { getSupabaseServer, getUserFromToken } from "@/lib/supabase-server";
 import OpenAI from "openai";
 import { env } from "@/lib/env";
 
-const WACLAW_URL = process.env.WACLAW_URL || "https://worker5.taile4c10f.ts.net";
-const WACLAW_API_KEY = process.env.WACLAW_API_KEY || "waclaw-dev-key";
 const MAX_CHARS = 100_000;
 
 type WaclawMessage = {
@@ -57,8 +55,8 @@ export async function POST(request: Request) {
   const cutoffMs = resolveCutoff(period);
 
   const res = await fetch(
-    `${WACLAW_URL}/sessions/${sessionId}/messages/${encodeURIComponent(chatJid)}?limit=${limit}`,
-    { headers: { "X-API-Key": WACLAW_API_KEY } }
+    `${env.WACLAW_URL}/sessions/${sessionId}/messages/${encodeURIComponent(chatJid)}?limit=${limit}`,
+    { headers: { "X-API-Key": env.WACLAW_API_KEY } }
   );
   if (!res.ok) {
     return Response.json(
@@ -151,10 +149,10 @@ ${logToSummarize}`;
   if (sendBackToChat) {
     const suffix = partial ? "\n\n⚠️ _Resumo parcial — conversa muito grande_" : "";
     const waMessage = `📋 *Resumo — ${periodLabel}*\n\n${summary}${suffix}`;
-    await fetch(`${WACLAW_URL}/sessions/${sessionId}/send`, {
+    await fetch(`${env.WACLAW_URL}/sessions/${sessionId}/send`, {
       method: "POST",
       headers: {
-        "X-API-Key": WACLAW_API_KEY,
+        "X-API-Key": env.WACLAW_API_KEY,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ to: chatJid, message: waMessage }),

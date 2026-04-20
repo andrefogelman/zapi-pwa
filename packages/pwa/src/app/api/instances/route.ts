@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { getSupabaseServer, getUserFromToken } from "@/lib/supabase-server";
+import { env } from "@/lib/env";
 
 export async function GET(request: Request) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "");
@@ -62,13 +63,11 @@ export async function POST(request: Request) {
   // Create waclaw session on worker5. Wrap the whole call in try/catch so
   // network-level errors (DNS, ECONNREFUSED, timeout) surface as 502 rather
   // than a generic 500.
-  const waclawUrl = process.env.WACLAW_URL ?? "http://100.66.83.22:3100";
-  const waclawKey = process.env.WACLAW_API_KEY ?? "waclaw-dev-key";
   let sessionId: string;
   try {
-    const sessionRes = await fetch(`${waclawUrl}/sessions`, {
+    const sessionRes = await fetch(`${env.WACLAW_URL}/sessions`, {
       method: "POST",
-      headers: { "X-API-Key": waclawKey, "Content-Type": "application/json" },
+      headers: { "X-API-Key": env.WACLAW_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({ name: name ?? "Minha Instância" }),
     });
     if (!sessionRes.ok) {

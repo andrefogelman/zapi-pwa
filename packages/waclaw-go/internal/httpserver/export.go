@@ -36,6 +36,10 @@ func (s *Server) handleExportChat(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "invalid jid")
 		return
 	}
+	if !isSafeJID(jid) {
+		s.writeError(w, http.StatusBadRequest, "unsafe jid")
+		return
+	}
 	format := r.URL.Query().Get("format")
 	if format == "" {
 		format = "json"
@@ -157,6 +161,28 @@ func msgsToMap(msgs []store.Message) []map[string]any {
 		out = append(out, row)
 	}
 	return out
+}
+
+// isSafeJID rejects anything that could escape the per-chat media directory
+// via filepath.Join. WhatsApp JIDs use digits, '@', '.', '-', and the servers
+// s.whatsapp.net / g.us / lid / newsletter / broadcast / hosted.lid — all of
+// those characters are covered by the regex below. Anything else (including
+// '..', '/', '\\') is rejected.
+func isSafeJID(s string) bool {
+	if s == "" || len(s) > 128 {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case r >= '0' && r <= '9':
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r == '@' || r == '.' || r == '-' || r == '_':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func sanitizeFilename(s string) string {

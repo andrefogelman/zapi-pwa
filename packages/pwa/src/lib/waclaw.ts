@@ -9,13 +9,13 @@
  * when the worker is slow or unreachable.
  */
 
-const WACLAW_URL = process.env.WACLAW_URL ?? "http://100.66.83.22:3100";
-const WACLAW_API_KEY = process.env.WACLAW_API_KEY ?? "waclaw-dev-key";
+import { env } from "./env";
+
 const WACLAW_TIMEOUT_MS = 15_000;
 
 function headers(): Record<string, string> {
   return {
-    "X-API-Key": WACLAW_API_KEY,
+    "X-API-Key": env.WACLAW_API_KEY,
     "Content-Type": "application/json",
   };
 }
@@ -53,7 +53,7 @@ export interface WaclawGroup {
 }
 
 export async function createSession(name: string): Promise<{ id: string }> {
-  const res = await timedFetch(`${WACLAW_URL}/sessions`, {
+  const res = await timedFetch(`${env.WACLAW_URL}/sessions`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ name }),
@@ -66,7 +66,7 @@ export async function createSession(name: string): Promise<{ id: string }> {
 
 export async function getSessionStatus(sessionId: string): Promise<WaclawSession> {
   const res = await timedFetch(
-    `${WACLAW_URL}/sessions/${encodeURIComponent(sessionId)}`,
+    `${env.WACLAW_URL}/sessions/${encodeURIComponent(sessionId)}`,
     { headers: headers() }
   );
   if (!res.ok) {
@@ -77,7 +77,7 @@ export async function getSessionStatus(sessionId: string): Promise<WaclawSession
 
 export async function getSessionQR(sessionId: string): Promise<WaclawQR> {
   const res = await timedFetch(
-    `${WACLAW_URL}/sessions/${encodeURIComponent(sessionId)}/qr`,
+    `${env.WACLAW_URL}/sessions/${encodeURIComponent(sessionId)}/qr`,
     { headers: headers() }
   );
   if (!res.ok) {
@@ -96,7 +96,7 @@ export async function getSessionQR(sessionId: string): Promise<WaclawQR> {
 
 export async function deleteSession(sessionId: string): Promise<void> {
   const res = await timedFetch(
-    `${WACLAW_URL}/sessions/${encodeURIComponent(sessionId)}`,
+    `${env.WACLAW_URL}/sessions/${encodeURIComponent(sessionId)}`,
     { method: "DELETE", headers: headers() }
   );
   if (!res.ok && res.status !== 404) {
@@ -106,7 +106,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
 
 export async function fetchSessionGroups(sessionId: string): Promise<WaclawGroup[]> {
   const res = await timedFetch(
-    `${WACLAW_URL}/sessions/${encodeURIComponent(sessionId)}/groups`,
+    `${env.WACLAW_URL}/sessions/${encodeURIComponent(sessionId)}/groups`,
     { headers: headers() }
   );
   if (!res.ok) {
@@ -123,7 +123,7 @@ export async function sendMessage(params: {
   replyToMessageId?: string;
 }): Promise<void> {
   const res = await timedFetch(
-    `${WACLAW_URL}/sessions/${encodeURIComponent(params.sessionId)}/send-message`,
+    `${env.WACLAW_URL}/sessions/${encodeURIComponent(params.sessionId)}/send-message`,
     {
       method: "POST",
       headers: headers(),

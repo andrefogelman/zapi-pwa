@@ -22,4 +22,12 @@ export const env = {
   get SUPABASE_SERVICE_ROLE_KEY() { return required("SUPABASE_SERVICE_ROLE_KEY"); },
   get UPSTASH_REDIS_REST_URL() { return required("UPSTASH_REDIS_REST_URL"); },
   get UPSTASH_REDIS_REST_TOKEN() { return required("UPSTASH_REDIS_REST_TOKEN"); },
+  // waclaw-go daemon endpoint + shared API key. No fallback — if either is
+  // missing in the runtime env we fail loudly instead of shipping a default
+  // that grants the whole world access to the daemon.
+  get WACLAW_URL() { return process.env.WACLAW_URL ?? "https://worker5.taile4c10f.ts.net"; },
+  get WACLAW_API_KEY() { return required("WACLAW_API_KEY"); },
+  // Shared secret used to verify webhooks posted by the Z-API provider
+  // ("X-Zapi-Signature" HMAC-SHA256 of the raw body).
+  get ZAPI_WEBHOOK_SECRET() { return process.env.ZAPI_WEBHOOK_SECRET ?? ""; },
 };

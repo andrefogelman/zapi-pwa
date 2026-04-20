@@ -35,9 +35,18 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "invalid jid encoding")
 		return
 	}
+	if !isSafeJID(chatJID) {
+		s.writeError(w, http.StatusBadRequest, "unsafe jid")
+		return
+	}
 	msgID, err := url.QueryUnescape(rawMsgID)
 	if err != nil {
 		s.writeError(w, http.StatusBadRequest, "invalid msgId encoding")
+		return
+	}
+	// msgIDs in whatsmeow are uppercase hex-like identifiers; restrict hard.
+	if !isSafeMsgID(msgID) {
+		s.writeError(w, http.StatusBadRequest, "unsafe msgId")
 		return
 	}
 
@@ -71,7 +80,28 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {
 		ct = guessMime(m.LocalPath)
 	}
 	w.Header().Set("Content-Type", ct)
+	// Per-user media. No shared cache (CDN or proxy) should hold it.
+	w.Header().Set("Cache-Control", "private, no-store")
 	http.ServeFile(w, r, m.LocalPath)
+}
+
+// isSafeMsgID rejects anything that could escape a chat's media folder via
+// filepath.Join. whatsmeow msg ids are hex-like strings.
+func isSafeMsgID(s string) bool {
+	if s == "" || len(s) > 128 {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case r >= '0' && r <= '9':
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r == '-' || r == '_':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // guessMime returns a MIME type based on the file extension.
