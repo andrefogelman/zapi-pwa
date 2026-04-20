@@ -8,6 +8,17 @@ import type { Instance } from "../hooks/useInstances";
 import type { ChatTab } from "../lib/formatters";
 import { useUserSettings } from "../hooks/useUserSettings";
 
+function formatPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length >= 12 && digits.startsWith("55")) {
+    const ddd = digits.slice(2, 4);
+    const num = digits.slice(4);
+    if (num.length === 9) return `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
+    if (num.length === 8) return `(${ddd}) ${num.slice(0, 4)}-${num.slice(4)}`;
+  }
+  return digits ? `+${digits}` : phone;
+}
+
 interface Props {
   instances: Instance[];
   instancesLoading: boolean;
@@ -24,6 +35,8 @@ interface Props {
   selectedJid: string | null;
   onSelectChat: (chat: Chat) => void;
   onChatContextMenu?: (chat: Chat, x: number, y: number) => void;
+  otherContacts?: { jid: string; lid: string | null; name: string; phone: string }[];
+  onSelectContact?: (contact: { jid: string; name: string }) => void;
   userEmail: string;
   onSignOut: () => void;
   onOpenTasks: () => void;
@@ -52,6 +65,8 @@ export function Sidebar({
   selectedJid,
   onSelectChat,
   onChatContextMenu,
+  otherContacts = [],
+  onSelectContact,
   userEmail,
   onSignOut,
   onOpenTasks,
@@ -152,6 +167,11 @@ export function Sidebar({
         {!loading && !instancesLoading && chats.length === 0 && instances.length > 0 && (
           <div className="wa-loading">Nenhuma conversa encontrada</div>
         )}
+        {search && chats.length > 0 && (
+          <div style={{ padding: "8px 16px 4px", color: "#00a884", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Conversas
+          </div>
+        )}
         {chats.map((chat) => (
           <ChatItem
             key={chat.jid}
@@ -161,6 +181,38 @@ export function Sidebar({
             onContextMenu={onChatContextMenu}
           />
         ))}
+        {search && otherContacts.length > 0 && (
+          <>
+            <div style={{ padding: "12px 16px 4px", color: "#00a884", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              Outros contatos
+            </div>
+            {otherContacts.map((c) => (
+              <div
+                key={c.jid}
+                className="wa-chat-item"
+                onClick={() => onSelectContact?.(c)}
+              >
+                <div className="wa-avatar">
+                  <span className="wa-avatar-initials" style={{ backgroundColor: "#6b7c85" }}>
+                    {(c.name || "?").charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="wa-chat-body">
+                  <div className="wa-chat-row">
+                    <span className="wa-chat-name">{c.name}</span>
+                  </div>
+                  {c.phone && (
+                    <div className="wa-chat-row">
+                      <span className="wa-chat-preview" style={{ color: "#8696a0" }}>
+                        {formatPhone(c.phone)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
       {settings?.role === "super_admin" && (

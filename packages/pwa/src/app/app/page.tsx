@@ -126,7 +126,7 @@ export default function AppMain() {
   );
   const sessionId = activeInstance?.waclaw_session_id || null;
 
-  const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, markAsRead, reloadChats } = useChats(sessionId);
+  const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, markAsRead, reloadChats, otherContacts } = useChats(sessionId);
   const { fetcher } = useWaclaw(sessionId);
 
   async function handleChatAction(action: ChatAction, chat: Chat) {
@@ -321,6 +321,27 @@ export default function AppMain() {
         selectedJid={selectedChat?.jid || null}
         onSelectChat={handleSelectChat}
         onChatContextMenu={(chat, x, y) => setChatMenu({ chat, x, y })}
+        otherContacts={otherContacts}
+        onSelectContact={(contact) => {
+          const pseudoChat: Chat = {
+            jid: contact.jid,
+            lid: null,
+            name: contact.name,
+            kind: contact.jid.includes("@g.us") ? "group" : "dm",
+            lastTs: 0,
+            lastMessage: null,
+            lastSender: null,
+            msgCount: 0,
+            isGroup: contact.jid.includes("@g.us"),
+            tab: contact.jid.includes("@g.us") ? "groups" : "dms",
+            profilePicUrl: null,
+            hasAvatar: false,
+            isUnread: false,
+            pinned: false,
+            manualUnread: false,
+          };
+          handleSelectChat(pseudoChat);
+        }}
         userEmail={session?.user?.email || ""}
         onSignOut={() => { signOut(); window.location.href = "/login"; }}
         onOpenTasks={() => { setTasksMode(true); setSelectedChat(null); }}

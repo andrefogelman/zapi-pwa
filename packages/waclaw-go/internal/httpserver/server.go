@@ -80,6 +80,7 @@ func (s *Server) mountRoutes() {
 			r.Patch("/chats/{jid}", s.handlePatchChat)
 			r.Delete("/chats/{jid}", s.handleDeleteChat)
 			r.Get("/groups", s.handleListGroups)
+			r.Get("/contacts/search", s.handleSearchContacts)
 			r.Get("/messages/{jid}", s.handleMessages)
 			r.Get("/search", s.handleSearch)
 			// Phase 8: send, actions, media

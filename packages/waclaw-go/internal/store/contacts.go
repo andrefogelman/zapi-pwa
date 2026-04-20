@@ -84,6 +84,42 @@ func nullIfEmpty(s string) any {
 	return s
 }
 
+// SearchContacts returns contacts whose push_name / full_name / business_name
+// match the given substring (case-insensitive). Used by the "Other contacts"
+// section of the chat-list search.
+func (s *Store) SearchContacts(term string, limit int) ([]Contact, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	like := "%" + term + "%"
+	rows, err := s.db.Query(`
+		SELECT jid, COALESCE(lid, ''), COALESCE(phone, ''), COALESCE(push_name, ''), COALESCE(full_name, ''), COALESCE(first_name, ''), COALESCE(business_name, '')
+		FROM contacts
+		WHERE
+			full_name LIKE ? COLLATE NOCASE
+			OR push_name LIKE ? COLLATE NOCASE
+			OR business_name LIKE ? COLLATE NOCASE
+			OR phone LIKE ?
+		ORDER BY
+			CASE WHEN NULLIF(full_name, '') IS NOT NULL THEN 0 ELSE 1 END,
+			full_name ASC, push_name ASC
+		LIMIT ?
+	`, like, like, like, like, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Contact
+	for rows.Next() {
+		var c Contact
+		if err := rows.Scan(&c.JID, &c.LID, &c.Phone, &c.PushName, &c.FullName, &c.FirstName, &c.BusinessName); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 // UpsertGroup upserts a group row.
 func (s *Store) UpsertGroup(g Group) error {
 	now := time.Now().Unix()

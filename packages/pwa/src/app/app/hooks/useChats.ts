@@ -5,6 +5,13 @@ import { useWaclaw } from "./useWaclaw";
 import { useAuth } from "@/lib/use-auth";
 import { getChatTab, type ChatTab } from "../lib/formatters";
 
+export interface OtherContact {
+  jid: string;
+  lid: string | null;
+  name: string;
+  phone: string;
+}
+
 export interface Chat {
   jid: string;
   lid: string | null;
@@ -35,6 +42,7 @@ export function useChats(sessionId: string | null) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<ChatTab>("all");
+  const [otherContacts, setOtherContacts] = useState<OtherContact[]>([]);
 
   const reloadChats = useCallback(() => {
     if (!ready) return;
@@ -117,6 +125,39 @@ export function useChats(sessionId: string | null) {
     return result;
   }, [allChats, activeTab, search]);
 
+  // When the user types a search term, also hit waclaw for address-book
+  // contacts that don't have an active chat yet. Debounced 250ms.
+  useEffect(() => {
+    if (!search.trim() || !ready) {
+      setOtherContacts([]);
+      return;
+    }
+    const q = search.trim();
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const data = await fetcher(`contacts/search?q=${encodeURIComponent(q)}&limit=50`);
+        if (cancelled || !Array.isArray(data)) return;
+        const activeJids = new Set(allChats.map((c) => c.jid));
+        const rows = (data as Record<string, unknown>[])
+          .filter((c) => !activeJids.has(c.jid as string))
+          .map((c) => ({
+            jid: c.jid as string,
+            lid: (c.lid as string) || null,
+            name: (c.name as string) || (c.phone as string) || (c.jid as string).split("@")[0],
+            phone: (c.phone as string) || "",
+          }));
+        setOtherContacts(rows);
+      } catch {
+        setOtherContacts([]);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [search, ready, fetcher, allChats]);
+
   const tabCounts = useMemo(() => ({
     all: allChats.length,
     dms: allChats.filter((c) => c.tab === "dms").length,
@@ -134,5 +175,5 @@ export function useChats(sessionId: string | null) {
     );
   }, [sessionId]);
 
-  return { chats: filtered, loading, search, setSearch, activeTab, setActiveTab, tabCounts, markAsRead, reloadChats };
+  return { chats: filtered, loading, search, setSearch, activeTab, setActiveTab, tabCounts, markAsRead, reloadChats, otherContacts };
 }
