@@ -189,6 +189,8 @@ func (s *Session) buildEventHandler() func(evt interface{}) {
 			go s.rehydratePendingDownloads(2000)
 		case *waevt.GroupInfo:
 			s.handleGroupInfo(v)
+		case *waevt.Blocklist:
+			s.handleBlocklist(v)
 		case *waevt.Disconnected:
 			s.setState(StateDisconnected)
 			s.log.Info().Msg("whatsapp disconnected")

@@ -2,9 +2,11 @@ package httpserver
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"go.mau.fi/whatsmeow/types"
 )
 
 // handleSearchContacts handles GET /sessions/{id}/contacts/search?q=term&limit=N
@@ -58,6 +60,70 @@ func (s *Server) handleSearchContacts(w http.ResponseWriter, r *http.Request) {
 			row["lid"] = c.LID
 		}
 		out = append(out, row)
+	}
+	s.writeJSON(w, http.StatusOK, out)
+}
+
+// handleContactInfo handles GET /sessions/{id}/contacts/{jid} — returns the
+// cached contact row plus a live GetUserInfo call to refresh status/picture.
+func (s *Server) handleContactInfo(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	sess, err := s.deps.Manager.Get(id)
+	if err != nil {
+		s.writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	st := sess.Store()
+	client := sess.Client()
+	if st == nil {
+		s.writeError(w, http.StatusServiceUnavailable, "store not ready")
+		return
+	}
+	rawJID := chi.URLParam(r, "jid")
+	jidStr, err := url.QueryUnescape(rawJID)
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid jid")
+		return
+	}
+	c, _ := st.GetContact(jidStr)
+	// Count messages + first/last.
+	var msgCount int64
+	var firstTs, lastTs int64
+	_ = st.DB().QueryRow(`SELECT COUNT(*), COALESCE(MIN(ts),0), COALESCE(MAX(ts),0) FROM messages WHERE chat_jid = ? OR sender_jid = ?`, jidStr, jidStr).
+		Scan(&msgCount, &firstTs, &lastTs)
+
+	out := map[string]any{
+		"jid":          jidStr,
+		"messageCount": msgCount,
+		"firstMessage": firstTs,
+		"lastMessage":  lastTs,
+	}
+	if c != nil {
+		if c.LID != "" {
+			out["lid"] = c.LID
+		}
+		out["pushName"] = c.PushName
+		out["fullName"] = c.FullName
+		out["businessName"] = c.BusinessName
+		out["phone"] = c.Phone
+	}
+	// Live refresh from whatsmeow — best-effort.
+	if client != nil {
+		if parsed, err := types.ParseJID(jidStr); err == nil {
+			if infoMap, err := client.GetUserInfo(r.Context(), []types.JID{parsed}); err == nil {
+				if info, ok := infoMap[parsed]; ok {
+					out["status"] = info.Status
+					if info.VerifiedName != nil && info.VerifiedName.Details != nil {
+						if vn := info.VerifiedName.Details.GetVerifiedName(); vn != "" {
+							out["verifiedName"] = vn
+						}
+					}
+					if !info.LID.IsEmpty() {
+						out["liveLid"] = info.LID.String()
+					}
+				}
+			}
+		}
 	}
 	s.writeJSON(w, http.StatusOK, out)
 }

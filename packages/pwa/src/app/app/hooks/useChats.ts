@@ -28,6 +28,8 @@ export interface Chat {
   isUnread: boolean;
   pinned: boolean;
   manualUnread: boolean;
+  mutedUntil: number;
+  blocked: boolean;
 }
 
 // localStorage key for last-read timestamp per chat
@@ -82,6 +84,8 @@ export function useChats(sessionId: string | null) {
           const lastReadTs = stored ? parseInt(stored, 10) : 0;
           const pinned = Boolean(c.pinned);
           const manualUnread = Boolean(c.manualUnread);
+          const mutedUntil = typeof c.mutedUntil === "number" ? c.mutedUntil : 0;
+          const blocked = Boolean(c.blocked);
           return {
             jid,
             lid: (c.lid as string) || null,
@@ -98,6 +102,8 @@ export function useChats(sessionId: string | null) {
             isUnread: manualUnread || lastTs > lastReadTs,
             pinned,
             manualUnread,
+            mutedUntil,
+            blocked,
           };
         }));
       }

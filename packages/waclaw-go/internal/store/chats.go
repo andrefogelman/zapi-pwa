@@ -14,6 +14,8 @@ type Chat struct {
 	LastMessageTs int64
 	Pinned        bool
 	ManualUnread  bool
+	MutedUntil    int64
+	Blocked       bool
 
 	// Read-only fields populated by GetChats:
 	LastMessage string
@@ -41,6 +43,13 @@ func (s *Store) SetChatPinned(jid string, pinned bool) error {
 		v = 1
 	}
 	_, err := s.db.Exec(`UPDATE chats SET pinned = ? WHERE jid = ?`, v, jid)
+	return err
+}
+
+// SetChatMutedUntil sets mute state. untilTs = 0 unmute, > 0 muted until that
+// unix second. Use math.MaxInt64 (or any very large number) for "forever".
+func (s *Store) SetChatMutedUntil(jid string, untilTs int64) error {
+	_, err := s.db.Exec(`UPDATE chats SET muted_until = ? WHERE jid = ?`, untilTs, jid)
 	return err
 }
 
@@ -142,6 +151,8 @@ func (s *Store) GetChats() ([]Chat, error) {
 			c.last_message_ts,
 			COALESCE(c.pinned, 0) AS pinned,
 			COALESCE(c.manual_unread, 0) AS manual_unread,
+			COALESCE(c.muted_until, 0) AS muted_until,
+			COALESCE((SELECT ct.blocked FROM contacts ct WHERE ct.jid = c.jid OR ct.jid = c.lid LIMIT 1), 0) AS blocked,
 			(SELECT COUNT(*) FROM messages m WHERE m.chat_jid = c.jid) AS msg_count,
 			(SELECT text FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC LIMIT 1) AS last_message,
 			(SELECT sender_name FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC LIMIT 1) AS last_sender
@@ -159,12 +170,13 @@ func (s *Store) GetChats() ([]Chat, error) {
 	for rows.Next() {
 		var c Chat
 		var lastMsg, lastSender sql.NullString
-		var pinned, manualUnread int
-		if err := rows.Scan(&c.JID, &c.LID, &c.Name, &c.Kind, &c.LastMessageTs, &pinned, &manualUnread, &c.MsgCount, &lastMsg, &lastSender); err != nil {
+		var pinned, manualUnread, blocked int
+		if err := rows.Scan(&c.JID, &c.LID, &c.Name, &c.Kind, &c.LastMessageTs, &pinned, &manualUnread, &c.MutedUntil, &blocked, &c.MsgCount, &lastMsg, &lastSender); err != nil {
 			return nil, err
 		}
 		c.Pinned = pinned != 0
 		c.ManualUnread = manualUnread != 0
+		c.Blocked = blocked != 0
 		c.LastMessage = lastMsg.String
 		c.LastSender = lastSender.String
 		c.IsGroup = c.Kind == "group"

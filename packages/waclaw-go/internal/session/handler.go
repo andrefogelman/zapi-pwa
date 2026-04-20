@@ -270,6 +270,22 @@ func (s *Session) handleReaction(evt *waevt.Message, rm *waE2E.ReactionMessage) 
 	s.handlerDeps.Bus.Publish(evt2)
 }
 
+// handleBlocklist keeps the local contacts.blocked mirror in sync with WA's
+// view of the blocklist. When Action is empty we got incremental Changes;
+// when Action is "modify" whatsmeow asks us to re-request the full list —
+// here we just apply the incremental path since it covers the common case.
+func (s *Session) handleBlocklist(evt *waevt.Blocklist) {
+	if s.store == nil || evt == nil {
+		return
+	}
+	for _, ch := range evt.Changes {
+		blocked := ch.Action == "block"
+		if err := s.store.SetContactBlocked(ch.JID.String(), blocked); err != nil {
+			s.log.Warn().Err(err).Str("jid", ch.JID.String()).Msg("blocklist sync failed")
+		}
+	}
+}
+
 // handleGroupInfo persists group subject changes (or first-time names) so
 // the chat list picks them up without a reconnect. Triggered when an admin
 // renames the group or when whatsmeow receives initial metadata for a group.

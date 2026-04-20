@@ -9,6 +9,15 @@ export type ChatAction =
   | "pin"
   | "unpin"
   | "archive"
+  | "mute8h"
+  | "mute1w"
+  | "muteForever"
+  | "unmute"
+  | "block"
+  | "unblock"
+  | "info"
+  | "exportJson"
+  | "exportZip"
   | "clear"
   | "delete";
 
@@ -45,21 +54,33 @@ export function ChatContextMenu({ chat, x, y, onClose, onAction }: Props) {
     };
   }, [onClose]);
 
+  const isMuted = chat.mutedUntil && chat.mutedUntil > Math.floor(Date.now() / 1000);
   const items: Item[] = [
+    { key: "info", label: "Info do contato", icon: "ℹ️" },
     chat.isUnread || chat.manualUnread
       ? { key: "markRead", label: "Marcar como lida", icon: "📖" }
       : { key: "markUnread", label: "Marcar como não lida", icon: "🔖" },
     chat.pinned
       ? { key: "unpin", label: "Desafixar", icon: "📌" }
       : { key: "pin", label: "Fixar no topo", icon: "📌" },
+    isMuted
+      ? { key: "unmute", label: "Reativar som", icon: "🔊" }
+      : { key: "mute8h", label: "Silenciar 8h", icon: "🔇" },
+    { key: "mute1w", label: "Silenciar 1 semana", icon: "🔇" },
+    { key: "muteForever", label: "Silenciar sempre", icon: "🔇" },
     { key: "archive", label: "Arquivar", icon: "🗄️" },
+    chat.blocked
+      ? { key: "unblock", label: "Desbloquear contato", icon: "✅" }
+      : { key: "block", label: "Bloquear contato", icon: "🚫", destructive: true },
+    { key: "exportJson", label: "Exportar (JSON)", icon: "📄" },
+    { key: "exportZip", label: "Exportar (ZIP + mídia)", icon: "📦" },
     { key: "clear", label: "Limpar conversa", icon: "🧹", destructive: true },
     { key: "delete", label: "Apagar conversa", icon: "🗑️", destructive: true },
   ];
 
-  // Clamp so menu stays on screen. 220px wide × ~260px tall.
-  const width = 220;
-  const height = 260;
+  // Clamp so menu stays on screen.
+  const width = 240;
+  const height = 480;
   const left = Math.min(x, window.innerWidth - width - 8);
   const top = Math.min(y, window.innerHeight - height - 8);
 
@@ -84,7 +105,7 @@ export function ChatContextMenu({ chat, x, y, onClose, onAction }: Props) {
     >
       {items.map((it, i) => (
         <div key={it.key}>
-          {i === 3 && (
+          {(i === items.length - 2 || i === items.length - 4) && (
             <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
           )}
           <button

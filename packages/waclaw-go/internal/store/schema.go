@@ -19,3 +19,6 @@ var migration0005 string
 
 //go:embed migrations/0006_chat_flags.sql
 var migration0006 string
+
+//go:embed migrations/0007_blocked_muted.sql
+var migration0007 string

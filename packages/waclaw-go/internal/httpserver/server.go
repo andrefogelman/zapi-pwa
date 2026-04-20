@@ -81,6 +81,11 @@ func (s *Server) mountRoutes() {
 			r.Delete("/chats/{jid}", s.handleDeleteChat)
 			r.Get("/groups", s.handleListGroups)
 			r.Get("/contacts/search", s.handleSearchContacts)
+			r.Get("/contacts/{jid}", s.handleContactInfo)
+			r.Post("/block/{jid}", s.handleBlock)
+			r.Get("/blocked", s.handleListBlocked)
+			r.Post("/mute/{jid}", s.handleMute)
+			r.Get("/chats/{jid}/export", s.handleExportChat)
 			r.Get("/messages/{jid}", s.handleMessages)
 			r.Get("/search", s.handleSearch)
 			// Phase 8: send, actions, media

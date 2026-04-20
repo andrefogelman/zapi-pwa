@@ -20,6 +20,7 @@ import { TaskCreateModal } from "./components/TaskCreateModal";
 import { TaskDetailModal } from "./components/TaskDetailModal";
 import { TaskPickerModal } from "./components/TaskPickerModal";
 import { ChatContextMenu, type ChatAction } from "./components/ChatContextMenu";
+import { ContactInfoModal } from "./components/ContactInfoModal";
 
 export default function AppMain() {
   const { session, signOut } = useAuth();
@@ -36,6 +37,7 @@ export default function AppMain() {
   const [linkChatPickerOpen, setLinkChatPickerOpen] = useState(false);
   const [linkMsgPickerOpen, setLinkMsgPickerOpen] = useState<Message | null>(null);
   const [chatMenu, setChatMenu] = useState<{ chat: Chat; x: number; y: number } | null>(null);
+  const [infoChat, setInfoChat] = useState<Chat | null>(null);
 
   const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask, loadTasks } = useTasks();
   const {
@@ -131,37 +133,71 @@ export default function AppMain() {
 
   async function handleChatAction(action: ChatAction, chat: Chat) {
     if (!sessionId || !session?.access_token) return;
-    const base = `/api/waclaw/sessions/${sessionId}/chats/${encodeURIComponent(chat.jid)}`;
+    const chatsBase = `/api/waclaw/sessions/${sessionId}/chats/${encodeURIComponent(chat.jid)}`;
+    const blockBase = `/api/waclaw/sessions/${sessionId}/block/${encodeURIComponent(chat.jid)}`;
+    const muteBase = `/api/waclaw/sessions/${sessionId}/mute/${encodeURIComponent(chat.jid)}`;
+    const exportBase = `/api/waclaw/sessions/${sessionId}/chats/${encodeURIComponent(chat.jid)}/export`;
     const headers = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${session.access_token}`,
     };
+    const muteUntil = (secondsFromNow: number) =>
+      secondsFromNow === 0 ? 0 : Math.floor(Date.now() / 1000) + secondsFromNow;
     try {
       switch (action) {
+        case "info":
+          setInfoChat(chat);
+          return;
         case "markUnread":
-          await fetch(base, { method: "PATCH", headers, body: JSON.stringify({ manualUnread: true }) });
+          await fetch(chatsBase, { method: "PATCH", headers, body: JSON.stringify({ manualUnread: true }) });
           break;
         case "markRead":
-          await fetch(base, { method: "PATCH", headers, body: JSON.stringify({ manualUnread: false }) });
+          await fetch(chatsBase, { method: "PATCH", headers, body: JSON.stringify({ manualUnread: false }) });
           markAsRead(chat.jid);
           break;
         case "pin":
-          await fetch(base, { method: "PATCH", headers, body: JSON.stringify({ pinned: true }) });
+          await fetch(chatsBase, { method: "PATCH", headers, body: JSON.stringify({ pinned: true }) });
           break;
         case "unpin":
-          await fetch(base, { method: "PATCH", headers, body: JSON.stringify({ pinned: false }) });
+          await fetch(chatsBase, { method: "PATCH", headers, body: JSON.stringify({ pinned: false }) });
           break;
         case "archive":
-          await fetch(base, { method: "PATCH", headers, body: JSON.stringify({ archived: true }) });
+          await fetch(chatsBase, { method: "PATCH", headers, body: JSON.stringify({ archived: true }) });
           if (selectedChat?.jid === chat.jid) setSelectedChat(null);
           break;
+        case "mute8h":
+          await fetch(muteBase, { method: "POST", headers, body: JSON.stringify({ mute: true, until: muteUntil(8 * 3600) }) });
+          break;
+        case "mute1w":
+          await fetch(muteBase, { method: "POST", headers, body: JSON.stringify({ mute: true, until: muteUntil(7 * 24 * 3600) }) });
+          break;
+        case "muteForever":
+          await fetch(muteBase, { method: "POST", headers, body: JSON.stringify({ mute: true, until: 0 }) });
+          break;
+        case "unmute":
+          await fetch(muteBase, { method: "POST", headers, body: JSON.stringify({ mute: false }) });
+          break;
+        case "block":
+          if (!confirm(`Bloquear ${chat.name}? Isso sincroniza para todos os seus dispositivos WhatsApp.`)) return;
+          await fetch(blockBase, { method: "POST", headers, body: JSON.stringify({ block: true }) });
+          break;
+        case "unblock":
+          await fetch(blockBase, { method: "POST", headers, body: JSON.stringify({ block: false }) });
+          break;
+        case "exportJson":
+        case "exportZip": {
+          const format = action === "exportJson" ? "json" : "zip";
+          const url = `${exportBase}?format=${format}&token=${encodeURIComponent(session.access_token)}`;
+          window.open(url, "_blank");
+          return;
+        }
         case "clear":
           if (!confirm(`Limpar todas as mensagens de "${chat.name}"?`)) return;
-          await fetch(`${base}?clearOnly=true`, { method: "DELETE", headers });
+          await fetch(`${chatsBase}?clearOnly=true`, { method: "DELETE", headers });
           break;
         case "delete":
           if (!confirm(`Apagar a conversa "${chat.name}"?`)) return;
-          await fetch(base, { method: "DELETE", headers });
+          await fetch(chatsBase, { method: "DELETE", headers });
           if (selectedChat?.jid === chat.jid) setSelectedChat(null);
           break;
       }
@@ -339,6 +375,8 @@ export default function AppMain() {
             isUnread: false,
             pinned: false,
             manualUnread: false,
+            mutedUntil: 0,
+            blocked: false,
           };
           handleSelectChat(pseudoChat);
         }}
@@ -490,6 +528,14 @@ export default function AppMain() {
           y={chatMenu.y}
           onClose={() => setChatMenu(null)}
           onAction={handleChatAction}
+        />
+      )}
+
+      {infoChat && sessionId && (
+        <ContactInfoModal
+          chat={infoChat}
+          sessionId={sessionId}
+          onClose={() => setInfoChat(null)}
         />
       )}
     </div>
