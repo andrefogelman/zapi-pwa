@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { formatMsgTime, formatSenderName } from "../lib/formatters";
+import { linkify } from "../lib/linkify";
 import type { Message, ReplyTarget } from "../hooks/useMessages";
 import { AudioMessage } from "./AudioMessage";
 import { ImageMessage } from "./ImageMessage";
@@ -144,7 +145,7 @@ export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onTog
           </div>
         );
       default:
-        return <div className="wa-msg-text">{msg.text}</div>;
+        return <div className="wa-msg-text">{linkify(msg.text)}</div>;
     }
   }
 

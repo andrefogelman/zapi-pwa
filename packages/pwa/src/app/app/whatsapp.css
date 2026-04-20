@@ -466,6 +466,14 @@
   margin-top: 4px;
 }
 
+.wa-msg-link {
+  color: #53bdeb;
+  text-decoration: underline;
+  word-break: break-all;
+}
+.wa-msg-link:hover { color: #7cc7ee; }
+.wa-msg.out .wa-msg-link { color: #a7d5f5; }
+
 /* Aggregated reaction chips on a message bubble (WhatsApp-style) */
 .wa-msg-reactions {
   display: flex;

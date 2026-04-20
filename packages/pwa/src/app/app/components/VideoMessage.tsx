@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { linkify } from "../lib/linkify";
 
 interface Props {
   videoUrl: string | null;
@@ -41,7 +42,7 @@ export function VideoMessage({ videoUrl, caption, mimeType }: Props) {
       {loading && !error && (
         <div className="wa-image-loading">Carregando vídeo...</div>
       )}
-      {caption && <div className="wa-image-caption">{caption}</div>}
+      {caption && <div className="wa-image-caption">{linkify(caption)}</div>}
     </div>
   );
 }

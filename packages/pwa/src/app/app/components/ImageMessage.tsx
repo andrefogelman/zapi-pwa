@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { linkify } from "../lib/linkify";
 
 interface Props {
   imageUrl: string | null;
@@ -41,7 +42,7 @@ export function ImageMessage({ imageUrl, caption }: Props) {
             />
           )}
         </div>
-        {caption && <div className="wa-image-caption">{caption}</div>}
+        {caption && <div className="wa-image-caption">{linkify(caption)}</div>}
       </div>
 
       {open && (
