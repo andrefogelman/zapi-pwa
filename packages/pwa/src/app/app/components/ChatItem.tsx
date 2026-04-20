@@ -80,6 +80,12 @@ export function ChatItem({ chat, selected, onClick, onContextMenu }: Props) {
           <span className="wa-chat-name">
             {chat.pinned && <span style={{ marginRight: 4, color: "#8696a0" }}>📌</span>}
             {displayName}
+            {chat.mutedUntil > 0 && chat.mutedUntil > Math.floor(Date.now() / 1000) && (
+              <span style={{ marginLeft: 6, color: "#8696a0", fontSize: 13 }} title="Silenciado">🔇</span>
+            )}
+            {chat.blocked && (
+              <span style={{ marginLeft: 6, color: "#ef4444", fontSize: 12 }} title="Bloqueado">🚫</span>
+            )}
           </span>
           <span className="wa-chat-time">{formatChatTime(chat.lastTs)}</span>
         </div>
