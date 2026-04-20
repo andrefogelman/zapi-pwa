@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
@@ -40,6 +42,8 @@ export function ChatPanel({
   onCancelReply, onBack, onOpenSummary, onOpenSchedule, onLinkToTask, onLinkMsgToTask, onPreviewMsg, taskCount, initialLoad,
 }: Props) {
   const [input, setInput] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const displayName = formatChatName(chat.jid, chat.name);
@@ -53,12 +57,34 @@ export function ChatPanel({
 
   function handleScroll() {
     const el = containerRef.current;
-    if (el && el.scrollTop < 80 && !loadingOlder && hasOlder && messages.length > 0) {
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    setShowScrollToBottom(!nearBottom && messages.length > 0);
+    if (el.scrollTop < 80 && !loadingOlder && hasOlder && messages.length > 0) {
       const prevHeight = el.scrollHeight;
       onLoadOlder();
       requestAnimationFrame(() => {
         if (el) el.scrollTop = el.scrollHeight - prevHeight;
       });
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    if (Array.from(e.dataTransfer.types).includes("Files")) {
+      e.preventDefault();
+      setIsDragging(true);
+    }
+  }
+  function handleDragLeave(e: React.DragEvent) {
+    // Only leave if the cursor actually left the panel (not just a child).
+    if (e.currentTarget === e.target) setIsDragging(false);
+  }
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    for (const f of files) {
+      await onSendFile(f);
     }
   }
 
@@ -83,7 +109,23 @@ export function ChatPanel({
   }
 
   return (
-    <div className="wa-chat-panel">
+    <div
+      className="wa-chat-panel"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{ position: "relative" }}
+    >
+      {isDragging && (
+        <div className="wa-drop-overlay">
+          <div>
+            <div style={{ fontSize: 48 }}>📎</div>
+            <div style={{ marginTop: 12, fontSize: 16, fontWeight: 500 }}>
+              Solte o arquivo para enviar
+            </div>
+          </div>
+        </div>
+      )}
       <div className="wa-panel-header">
         <button className="wa-back-btn" onClick={onBack}>
           <svg viewBox="0 0 24 24" width="24" height="24" fill="#aebac1"><path d="M12 4l1.4 1.4L7.8 11H20v2H7.8l5.6 5.6L12 20l-8-8z"/></svg>
@@ -170,6 +212,19 @@ export function ChatPanel({
         ))}
         <div ref={bottomRef} />
       </div>
+
+      {showScrollToBottom && (
+        <button
+          className="wa-scroll-bottom"
+          onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })}
+          title="Ir para a mensagem mais recente"
+          aria-label="Rolar para o final"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/>
+          </svg>
+        </button>
+      )}
 
       <MessageInput
         value={input}
