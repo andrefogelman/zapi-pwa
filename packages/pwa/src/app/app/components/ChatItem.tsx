@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { formatChatName, formatChatTime, getInitials, avatarColor } from "../lib/formatters";
 import type { Chat } from "../hooks/useChats";
 
@@ -13,7 +13,7 @@ interface Props {
 
 const LONG_PRESS_MS = 450;
 
-export function ChatItem({ chat, selected, onClick, onContextMenu }: Props) {
+function ChatItemImpl({ chat, selected, onClick, onContextMenu }: Props) {
   const [imgError, setImgError] = useState(false);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClick = useRef(false);
@@ -102,3 +102,24 @@ export function ChatItem({ chat, selected, onClick, onContextMenu }: Props) {
     </div>
   );
 }
+
+// 800+ items — memoize. Re-render only when anything user-visible on this row
+// changes, or selection toggles.
+export const ChatItem = memo(ChatItemImpl, (prev, next) => {
+  if (prev.selected !== next.selected) return false;
+  const a = prev.chat;
+  const b = next.chat;
+  return (
+    a.jid === b.jid &&
+    a.name === b.name &&
+    a.lastTs === b.lastTs &&
+    a.lastMessage === b.lastMessage &&
+    a.lastSender === b.lastSender &&
+    a.isUnread === b.isUnread &&
+    a.pinned === b.pinned &&
+    a.blocked === b.blocked &&
+    a.mutedUntil === b.mutedUntil &&
+    a.hasAvatar === b.hasAvatar &&
+    a.profilePicUrl === b.profilePicUrl
+  );
+});

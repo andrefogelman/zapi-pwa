@@ -42,7 +42,14 @@ export function useChats(sessionId: string | null) {
   const { session } = useAuth();
   const [allChats, setAllChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
+  // searchInput = what's in the box (updates each keystroke, used for input value)
+  // search = debounced version that drives filtering (200ms lag).
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  useEffect(() => {
+    const h = setTimeout(() => setSearch(searchInput), 200);
+    return () => clearTimeout(h);
+  }, [searchInput]);
   const [activeTab, setActiveTab] = useState<ChatTab>("all");
   const [otherContacts, setOtherContacts] = useState<OtherContact[]>([]);
 
@@ -186,5 +193,11 @@ export function useChats(sessionId: string | null) {
     );
   }, [sessionId]);
 
-  return { chats: filtered, loading, search, setSearch, activeTab, setActiveTab, tabCounts, markAsRead, reloadChats, otherContacts };
+  return {
+    chats: filtered,
+    loading,
+    search: searchInput,
+    setSearch: setSearchInput,
+    activeTab, setActiveTab, tabCounts, markAsRead, reloadChats, otherContacts,
+  };
 }

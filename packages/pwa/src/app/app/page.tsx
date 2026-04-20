@@ -1,14 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/lib/use-auth";
 import { Sidebar } from "./components/Sidebar";
 import { ChatPanel } from "./components/ChatPanel";
 import { EmptyState } from "./components/EmptyState";
-import { SettingsModal } from "./components/SettingsModal";
-import { ForwardPickerModal } from "./components/ForwardPickerModal";
-import { SummaryModal } from "./components/SummaryModal";
-import { ScheduleMessageModal } from "./components/ScheduleMessageModal";
 import { useChats, type Chat } from "./hooks/useChats";
 import { useMessages, type Message } from "./hooks/useMessages";
 import { useInstances } from "./hooks/useInstances";
@@ -16,12 +13,50 @@ import { useWaclaw } from "./hooks/useWaclaw";
 import { QRConnectWizard } from "./components/QRConnectWizard";
 import { useTasks, useTaskDetail, type Task } from "./hooks/useTasks";
 import { TaskListPanel } from "./components/TaskListPanel";
-import { TaskCreateModal } from "./components/TaskCreateModal";
-import { TaskDetailModal } from "./components/TaskDetailModal";
-import { TaskPickerModal } from "./components/TaskPickerModal";
-import { ChatContextMenu, type ChatAction } from "./components/ChatContextMenu";
-import { ContactInfoModal } from "./components/ContactInfoModal";
-import { MessagePreviewModal } from "./components/MessagePreviewModal";
+import { type ChatAction } from "./components/ChatContextMenu";
+
+// Heavy modals: loaded on demand so the initial chunk stays small. They
+// only mount when their open prop flips true so this doesn't affect UX.
+const SettingsModal = dynamic(
+  () => import("./components/SettingsModal").then((m) => ({ default: m.SettingsModal })),
+  { ssr: false },
+);
+const ForwardPickerModal = dynamic(
+  () => import("./components/ForwardPickerModal").then((m) => ({ default: m.ForwardPickerModal })),
+  { ssr: false },
+);
+const SummaryModal = dynamic(
+  () => import("./components/SummaryModal").then((m) => ({ default: m.SummaryModal })),
+  { ssr: false },
+);
+const ScheduleMessageModal = dynamic(
+  () => import("./components/ScheduleMessageModal").then((m) => ({ default: m.ScheduleMessageModal })),
+  { ssr: false },
+);
+const TaskCreateModal = dynamic(
+  () => import("./components/TaskCreateModal").then((m) => ({ default: m.TaskCreateModal })),
+  { ssr: false },
+);
+const TaskDetailModal = dynamic(
+  () => import("./components/TaskDetailModal").then((m) => ({ default: m.TaskDetailModal })),
+  { ssr: false },
+);
+const TaskPickerModal = dynamic(
+  () => import("./components/TaskPickerModal").then((m) => ({ default: m.TaskPickerModal })),
+  { ssr: false },
+);
+const ChatContextMenu = dynamic(
+  () => import("./components/ChatContextMenu").then((m) => ({ default: m.ChatContextMenu })),
+  { ssr: false },
+);
+const ContactInfoModal = dynamic(
+  () => import("./components/ContactInfoModal").then((m) => ({ default: m.ContactInfoModal })),
+  { ssr: false },
+);
+const MessagePreviewModal = dynamic(
+  () => import("./components/MessagePreviewModal").then((m) => ({ default: m.MessagePreviewModal })),
+  { ssr: false },
+);
 
 export default function AppMain() {
   const { session, signOut } = useAuth();

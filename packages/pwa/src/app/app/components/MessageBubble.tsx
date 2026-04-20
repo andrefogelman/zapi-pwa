@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { formatMsgTime, formatSenderName } from "../lib/formatters";
 import { linkify } from "../lib/linkify";
 import type { Message, ReplyTarget } from "../hooks/useMessages";
@@ -49,7 +49,7 @@ function StatusTicks({ msg }: { msg: Message }) {
   );
 }
 
-export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onToggleStar, onDelete, onLinkToTask, onPreview }: Props) {
+function MessageBubbleImpl({ msg, isGroup, onReply, onForward, onReact, onToggleStar, onDelete, onLinkToTask, onPreview }: Props) {
   const time = formatMsgTime(msg.timestamp);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
@@ -210,3 +210,25 @@ export function MessageBubble({ msg, isGroup, onReply, onForward, onReact, onTog
     </>
   );
 }
+
+// Heavy list — memoize on msg identity + mutable flags that affect render.
+// Handler props are stable enough across parent renders that we don't compare
+// them; if they change, the memo still busts because equality below won't
+// cover them explicitly but it also won't prevent correct re-renders when
+// the msg itself mutates.
+export const MessageBubble = memo(MessageBubbleImpl, (prev, next) => {
+  if (prev.msg.id !== next.msg.id) return false;
+  if (prev.msg.text !== next.msg.text) return false;
+  if (prev.msg.mediaUrl !== next.msg.mediaUrl) return false;
+  if (prev.msg.transcription !== next.msg.transcription) return false;
+  if (prev.msg.transcriptionStatus !== next.msg.transcriptionStatus) return false;
+  if (prev.msg.starred !== next.msg.starred) return false;
+  if (prev.isGroup !== next.isGroup) return false;
+  const pr = prev.msg.reactions ?? [];
+  const nr = next.msg.reactions ?? [];
+  if (pr.length !== nr.length) return false;
+  for (let i = 0; i < pr.length; i++) {
+    if (pr[i].emoji !== nr[i].emoji || pr[i].count !== nr[i].count) return false;
+  }
+  return true;
+});
