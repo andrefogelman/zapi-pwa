@@ -13,14 +13,13 @@ interface Props {
   onReact: (msg: Message, emoji: string) => Promise<void>;
   onToggleStar: (msgId: string) => Promise<void>;
   onDelete: (msg: Message) => Promise<void>;
-  onLinkToTask: (msg: Message) => void;
   onPreview: (msg: Message) => void;
 }
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 export function MessageContextMenu({
-  msg, x, y, onClose, onReply, onForward, onReact, onToggleStar, onDelete, onLinkToTask, onPreview,
+  msg, x, y, onClose, onReply, onForward, onReact, onToggleStar, onDelete, onPreview,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [showReactions, setShowReactions] = useState(false);
@@ -216,13 +215,6 @@ export function MessageContextMenu({
           <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
         </svg>
         {msg.starred ? "Remover estrela" : "Marcar com estrela"}
-      </button>
-
-      <button className="wa-ctx-item" onClick={() => { onLinkToTask(msg); onClose(); }}>
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
-        </svg>
-        Vincular a tarefa
       </button>
 
       <div className="wa-ctx-sep" />

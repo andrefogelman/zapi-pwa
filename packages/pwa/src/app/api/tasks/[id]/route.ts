@@ -1,15 +1,15 @@
 export const dynamic = "force-dynamic";
 
 import { getSupabaseServer, getUserFromToken } from "@/lib/supabase-server";
+import { env } from "@/lib/env";
 
 // GET /api/tasks/[id]
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "");
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
   const user = await getUserFromToken(token);
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -20,20 +20,16 @@ export async function GET(
     .from("tasks")
     .select(`
       *,
-      task_participants(id, user_id, contact_jid, instance_id, role, added_at),
-      task_conversations(id, instance_id, chat_jid, chat_name, added_at),
-      task_messages(id, instance_id, chat_jid, waclaw_msg_id, waclaw_session_id, snippet, sender_name, message_ts, added_at),
-      task_comments(id, author_id, body, ref_waclaw_msg_id, ref_session_id, created_at, updated_at)
+      task_participants(id, user_id, contact_jid, instance_id, role, joined_group_at, join_failure, added_at)
     `)
     .eq("id", id)
     .single();
 
   if (error) return Response.json({ error: error.message }, { status: 404 });
 
-  // Verify access: creator or participant
   const isCreator = task.creator_id === user.id;
   const isParticipant = task.task_participants?.some(
-    (p: { user_id: string | null }) => p.user_id === user.id
+    (p: { user_id: string | null }) => p.user_id === user.id,
   );
   if (!isCreator && !isParticipant) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -46,11 +42,10 @@ export async function GET(
 // body: any subset of { title, description, priority, status, assigned_to, due_date }
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "");
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
   const user = await getUserFromToken(token);
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -58,10 +53,9 @@ export async function PATCH(
   const body = await request.json();
   const supabase = getSupabaseServer();
 
-  // Verify ownership
   const { data: existing } = await supabase
     .from("tasks")
-    .select("creator_id")
+    .select("creator_id, title, status, wa_group_jid, wa_instance_id, instances:wa_instance_id(waclaw_session_id)")
     .eq("id", id)
     .single();
   if (!existing) return Response.json({ error: "Not found" }, { status: 404 });
@@ -75,7 +69,6 @@ export async function PATCH(
     if (key in body) updates[key] = body[key];
   }
 
-  // Auto-set timestamp fields on status transitions
   if (updates.status === "resolved") updates.resolved_at = new Date().toISOString();
   if (updates.status === "closed") updates.closed_at = new Date().toISOString();
 
@@ -91,17 +84,44 @@ export async function PATCH(
     .single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  // When a task transitions to closed, rename the backing WA group to signal
+  // it's archived. Kept in-group so participants still have the history but
+  // see it's done. Truncated to fit WhatsApp's 25-char group name limit.
+  if (
+    updates.status === "closed" &&
+    existing.wa_group_jid &&
+    existing.status !== "closed"
+  ) {
+    const inst = Array.isArray(existing.instances) ? existing.instances[0] : existing.instances;
+    const sessionId = (inst as { waclaw_session_id: string | null } | undefined)?.waclaw_session_id ?? null;
+    if (sessionId) {
+      const newName = `[ARQUIVADO] ${existing.title}`.slice(0, 25);
+      try {
+        await fetch(
+          `${env.WACLAW_URL}/sessions/${sessionId}/groups/${encodeURIComponent(existing.wa_group_jid)}/subject`,
+          {
+            method: "POST",
+            headers: { "X-API-Key": env.WACLAW_API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ name: newName }),
+          },
+        );
+      } catch {
+        // best-effort; rename failure doesn't break the status change
+      }
+    }
+  }
+
   return Response.json({ task });
 }
 
 // DELETE /api/tasks/[id]
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "");
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
   const user = await getUserFromToken(token);
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 

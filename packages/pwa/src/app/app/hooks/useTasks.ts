@@ -16,10 +16,11 @@ export interface Task {
   closed_at: string | null;
   created_at: string;
   updated_at: string;
+  // WA group backing
+  wa_group_jid?: string | null;
+  wa_instance_id?: string | null;
+  wa_group_created_at?: string | null;
   task_participants?: TaskParticipant[];
-  task_conversations?: TaskConversation[];
-  task_messages?: TaskMessage[];
-  task_comments?: { count: number }[];
 }
 
 export interface TaskParticipant {
@@ -28,37 +29,9 @@ export interface TaskParticipant {
   contact_jid: string | null;
   instance_id: string | null;
   role: string;
+  joined_group_at?: string | null;
+  join_failure?: string | null;
   added_at?: string;
-}
-
-export interface TaskConversation {
-  id: string;
-  instance_id: string;
-  chat_jid: string;
-  chat_name: string | null;
-  added_at?: string;
-}
-
-export interface TaskMessage {
-  id: string;
-  instance_id: string;
-  chat_jid: string;
-  waclaw_msg_id: string;
-  waclaw_session_id: string;
-  snippet: string | null;
-  sender_name: string | null;
-  message_ts: string | null;
-  added_at?: string;
-}
-
-export interface TaskComment {
-  id: string;
-  author_id: string;
-  body: string;
-  ref_waclaw_msg_id: string | null;
-  ref_session_id: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
 export function useTasks() {
@@ -108,7 +81,7 @@ export function useTasks() {
 
   const updateTask = useCallback(async (
     taskId: string,
-    updates: Partial<Pick<Task, "title" | "description" | "priority" | "status" | "assigned_to" | "due_date">>
+    updates: Partial<Pick<Task, "title" | "description" | "priority" | "status" | "assigned_to" | "due_date">>,
   ) => {
     if (!session?.access_token) return null;
     const res = await fetch(`/api/tasks/${taskId}`, {
@@ -118,20 +91,21 @@ export function useTasks() {
     });
     if (!res.ok) return null;
     const data = await res.json();
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...data.task } : t)));
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? data.task : t)));
     return data.task as Task;
   }, [session?.access_token, headers]);
 
   const deleteTask = useCallback(async (taskId: string) => {
-    if (!session?.access_token) return;
+    if (!session?.access_token) return false;
     const res = await fetch(`/api/tasks/${taskId}`, {
       method: "DELETE",
       headers: headers(),
     });
-    if (res.ok) setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    if (!res.ok) return false;
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    return true;
   }, [session?.access_token, headers]);
 
-  // Auto-load on mount
   useEffect(() => { loadTasks(); }, [loadTasks]);
 
   return { tasks, loading, loadTasks, createTask, updateTask, deleteTask };
@@ -140,7 +114,6 @@ export function useTasks() {
 export function useTaskDetail(taskId: string | null) {
   const { session } = useAuth();
   const [task, setTask] = useState<Task | null>(null);
-  const [comments, setComments] = useState<TaskComment[]>([]);
   const [loading, setLoading] = useState(false);
 
   const headers = useCallback(() => ({
@@ -155,32 +128,14 @@ export function useTaskDetail(taskId: string | null) {
     if (res.ok) {
       const data = await res.json();
       setTask(data.task);
-      setComments(data.task.task_comments || []);
     }
     setLoading(false);
-  }, [taskId, session?.access_token, headers]);
-
-  const addComment = useCallback(async (body: string, refMsgId?: string, refSessionId?: string) => {
-    if (!taskId || !session?.access_token) return null;
-    const res = await fetch(`/api/tasks/${taskId}/comments`, {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({
-        body,
-        ref_waclaw_msg_id: refMsgId || null,
-        ref_session_id: refSessionId || null,
-      }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    setComments((prev) => [...prev, data.comment]);
-    return data.comment as TaskComment;
   }, [taskId, session?.access_token, headers]);
 
   const addParticipant = useCallback(async (input: {
     user_id?: string;
     contact_jid?: string;
-    instance_id?: string;
+    contact_name?: string;
     role?: string;
   }) => {
     if (!taskId || !session?.access_token) return;
@@ -201,79 +156,21 @@ export function useTaskDetail(taskId: string | null) {
     loadDetail();
   }, [taskId, session?.access_token, headers, loadDetail]);
 
-  const addConversation = useCallback(async (input: {
-    instance_id: string;
-    chat_jid: string;
-    chat_name?: string;
-  }) => {
-    if (!taskId || !session?.access_token) return;
-    await fetch(`/api/tasks/${taskId}/conversations`, {
+  // Send a direct message to a single participant (bypasses the group).
+  const sendDirectMessage = useCallback(async (contactJid: string, body: string) => {
+    if (!taskId || !session?.access_token) return false;
+    const res = await fetch(`/api/tasks/${taskId}/dm`, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify(input),
+      body: JSON.stringify({ contact_jid: contactJid, body }),
     });
-    loadDetail();
-  }, [taskId, session?.access_token, headers, loadDetail]);
-
-  const removeConversation = useCallback(async (conversationId: string) => {
-    if (!taskId || !session?.access_token) return;
-    await fetch(`/api/tasks/${taskId}/conversations?conversationId=${conversationId}`, {
-      method: "DELETE",
-      headers: headers(),
-    });
-    loadDetail();
-  }, [taskId, session?.access_token, headers, loadDetail]);
-
-  const pinMessage = useCallback(async (input: {
-    instance_id: string;
-    chat_jid: string;
-    waclaw_msg_id: string;
-    waclaw_session_id: string;
-    snippet?: string;
-    sender_name?: string;
-    message_ts?: string;
-  }) => {
-    if (!taskId || !session?.access_token) return;
-    await fetch(`/api/tasks/${taskId}/messages`, {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify(input),
-    });
-    loadDetail();
-  }, [taskId, session?.access_token, headers, loadDetail]);
-
-  const unpinMessage = useCallback(async (messageId: string) => {
-    if (!taskId || !session?.access_token) return;
-    await fetch(`/api/tasks/${taskId}/messages?messageId=${messageId}`, {
-      method: "DELETE",
-      headers: headers(),
-    });
-    loadDetail();
-  }, [taskId, session?.access_token, headers, loadDetail]);
+    return res.ok;
+  }, [taskId, session?.access_token, headers]);
 
   useEffect(() => { loadDetail(); }, [loadDetail]);
 
-  // Poll comments every 5s while the task is actually open. Resolved/closed
-  // tasks don't get new comments and polling them was wasting quota.
-  useEffect(() => {
-    if (!taskId || !session?.access_token) return;
-    const isActive = task?.status === "open" || task?.status === "in_progress";
-    if (!isActive) return;
-    const id = setInterval(async () => {
-      if (document.hidden) return;
-      const res = await fetch(`/api/tasks/${taskId}/comments`, { headers: headers() });
-      if (res.ok) {
-        const data = await res.json();
-        setComments(data.comments || []);
-      }
-    }, 5000);
-    return () => clearInterval(id);
-  }, [taskId, task?.status, session?.access_token, headers]);
-
   return {
-    task, comments, loading, loadDetail,
-    addComment, addParticipant, removeParticipant,
-    addConversation, removeConversation,
-    pinMessage, unpinMessage,
+    task, loading, loadDetail,
+    addParticipant, removeParticipant, sendDirectMessage,
   };
 }

@@ -15,10 +15,8 @@ function formatDate(iso: string | null) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
-function commentCount(task: Task): number {
-  const arr = task.task_comments;
-  if (!arr || arr.length === 0) return 0;
-  return arr[0]?.count || 0;
+function participantCount(task: Task): number {
+  return task.task_participants?.length ?? 0;
 }
 
 export function TaskListPanel({ tasks, loading, onSelectTask, onCreateTask, onBack }: Props) {
@@ -96,9 +94,14 @@ export function TaskListPanel({ tasks, loading, onSelectTask, onCreateTask, onBa
                   Prazo: {formatDate(task.due_date)}
                 </span>
               )}
-              {commentCount(task) > 0 && (
+              {participantCount(task) > 0 && (
                 <span style={{ color: "#8696a0", fontSize: 11, marginLeft: "auto" }}>
-                  {commentCount(task)} comentários
+                  {participantCount(task)} participantes
+                </span>
+              )}
+              {task.wa_group_jid && (
+                <span style={{ color: "#00a884", fontSize: 10, marginLeft: 6 }}>
+                  💬 grupo
                 </span>
               )}
             </div>

@@ -70,9 +70,7 @@ export async function GET(request: Request) {
     .from("tasks")
     .select(`
       *,
-      task_participants(id, user_id, contact_jid, instance_id, role),
-      task_conversations(id, instance_id, chat_jid, chat_name),
-      task_comments(count)
+      task_participants(id, user_id, contact_jid, instance_id, role, joined_group_at, join_failure)
     `)
     .in("id", [...taskIds])
     .order("created_at", { ascending: false });

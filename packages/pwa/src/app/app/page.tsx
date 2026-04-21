@@ -41,10 +41,6 @@ const TaskDetailModal = dynamic(
   () => import("./components/TaskDetailModal").then((m) => ({ default: m.TaskDetailModal })),
   { ssr: false },
 );
-const TaskPickerModal = dynamic(
-  () => import("./components/TaskPickerModal").then((m) => ({ default: m.TaskPickerModal })),
-  { ssr: false },
-);
 const ChatContextMenu = dynamic(
   () => import("./components/ChatContextMenu").then((m) => ({ default: m.ChatContextMenu })),
   { ssr: false },
@@ -70,87 +66,16 @@ export default function AppMain() {
   const [tasksMode, setTasksMode] = useState(false);
   const [taskCreateOpen, setTaskCreateOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [linkChatPickerOpen, setLinkChatPickerOpen] = useState(false);
-  const [linkMsgPickerOpen, setLinkMsgPickerOpen] = useState<Message | null>(null);
   const [chatMenu, setChatMenu] = useState<{ chat: Chat; x: number; y: number } | null>(null);
   const [infoChat, setInfoChat] = useState<Chat | null>(null);
   const [previewMsg, setPreviewMsg] = useState<Message | null>(null);
 
   const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask, loadTasks } = useTasks();
   const {
-    task: taskDetail, comments: taskComments, loading: taskDetailLoading,
-    addComment, addConversation, removeParticipant, removeConversation, pinMessage, unpinMessage,
+    task: taskDetail, loading: taskDetailLoading,
+    removeParticipant, sendDirectMessage,
   } = useTaskDetail(selectedTask?.id || null);
 
-  // Count tasks linked to the current chat
-  const chatTaskCount = useMemo(() => {
-    if (!selectedChat) return 0;
-    return tasks.filter((t) =>
-      t.task_conversations?.some((c) => c.chat_jid === selectedChat.jid)
-    ).length;
-  }, [tasks, selectedChat]);
-
-  async function handleLinkChatToTask(task: Task) {
-    if (!selectedChat || !activeInstanceId) return;
-    // Temporarily select this task to use addConversation
-    const prevSelected = selectedTask;
-    setSelectedTask(task);
-    // Use fetch directly since addConversation needs the taskId set
-    const token = session?.access_token;
-    if (!token) return;
-    await fetch(`/api/tasks/${task.id}/conversations`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        instance_id: activeInstanceId,
-        chat_jid: selectedChat.jid,
-        chat_name: selectedChat.name,
-      }),
-    });
-    setSelectedTask(prevSelected);
-    setLinkChatPickerOpen(false);
-    loadTasks();
-  }
-
-  async function handleLinkMsgToTask(task: Task) {
-    if (!linkMsgPickerOpen || !activeInstanceId || !sessionId) return;
-    const msg = linkMsgPickerOpen;
-    const token = session?.access_token;
-    if (!token) return;
-    const snippet = (msg.text || msg.mediaCaption || "").slice(0, 500);
-    const senderName = msg.senderName || (msg.fromMe ? "Você" : "Desconhecido");
-
-    // Pin the message
-    await fetch(`/api/tasks/${task.id}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        instance_id: activeInstanceId,
-        chat_jid: msg.chatJid,
-        waclaw_msg_id: msg.id,
-        waclaw_session_id: sessionId,
-        snippet,
-        sender_name: senderName,
-        message_ts: new Date(msg.timestamp * 1000).toISOString(),
-      }),
-    });
-
-    // Auto-post message content as a comment in the discussion
-    if (snippet) {
-      await fetch(`/api/tasks/${task.id}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          body: `📌 ${senderName}:\n${snippet}`,
-          ref_waclaw_msg_id: msg.id,
-          ref_session_id: sessionId,
-        }),
-      });
-    }
-
-    setLinkMsgPickerOpen(null);
-    loadTasks();
-  }
 
   // Auto-select the first waclaw-enabled instance once the list loads
   useEffect(() => {
@@ -443,10 +368,7 @@ export default function AppMain() {
             onBack={() => setSelectedChat(null)}
             onOpenSummary={() => setSummaryOpen(true)}
             onOpenSchedule={() => setScheduleOpen(true)}
-            onLinkToTask={() => setLinkChatPickerOpen(true)}
-            onLinkMsgToTask={(msg) => setLinkMsgPickerOpen(msg)}
             onPreviewMsg={(msg) => setPreviewMsg(msg)}
-            taskCount={chatTaskCount}
             initialLoad={initialLoad}
           />
         )}
@@ -499,58 +421,21 @@ export default function AppMain() {
 
       <TaskDetailModal
         task={selectedTask ? taskDetail : null}
-        comments={taskComments}
-        instances={instances}
         loading={taskDetailLoading}
         onClose={() => setSelectedTask(null)}
         onUpdateStatus={(status) => {
           if (selectedTask) updateTask(selectedTask.id, { status: status as Task["status"] });
         }}
-        onAddComment={addComment}
         onRemoveParticipant={removeParticipant}
-        onRemoveConversation={removeConversation}
-        onUnpinMessage={unpinMessage}
+        onSendDirectMessage={sendDirectMessage}
         onDelete={async () => {
           if (selectedTask) {
             await deleteTask(selectedTask.id);
             setSelectedTask(null);
           }
         }}
-        onNavigateToChat={(chatJid) => {
-          const chat = chats.find((c) => c.jid === chatJid);
-          if (chat) {
-            setSelectedChat(chat);
-            setTasksMode(false);
-            setSelectedTask(null);
-          }
-        }}
       />
 
-      <TaskPickerModal
-        open={linkChatPickerOpen}
-        title="Vincular conversa a tarefa"
-        tasks={tasks}
-        onSelect={handleLinkChatToTask}
-        onCreate={async (title) => {
-          const task = await createTask({ title });
-          if (task) await handleLinkChatToTask(task);
-          setLinkChatPickerOpen(false);
-        }}
-        onClose={() => setLinkChatPickerOpen(false)}
-      />
-
-      <TaskPickerModal
-        open={!!linkMsgPickerOpen}
-        title="Fixar mensagem em tarefa"
-        tasks={tasks}
-        onSelect={handleLinkMsgToTask}
-        onCreate={async (title) => {
-          const task = await createTask({ title });
-          if (task) await handleLinkMsgToTask(task);
-          setLinkMsgPickerOpen(null);
-        }}
-        onClose={() => setLinkMsgPickerOpen(null)}
-      />
 
       {chatMenu && (
         <ChatContextMenu
