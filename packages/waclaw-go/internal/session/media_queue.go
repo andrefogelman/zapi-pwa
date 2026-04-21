@@ -108,16 +108,20 @@ func (r *MediaQueueRunner) process(ctx context.Context, job MediaJob, idx int) {
 }
 
 // storedMediaMessage adapts a *store.Message to whatsmeow.DownloadableMessage.
-// The interface requires exactly: GetDirectPath, GetMediaKey, GetFileSHA256,
-// GetFileEncSHA256.
+// whatsmeow's Download() infers the media type either from a proto descriptor
+// (for live message protos) or from the MediaTypeable interface (GetMediaType).
+// Since we're rehydrating from SQLite rather than a proto, we implement the
+// MediaTypeable interface using the stored media_type string — without it,
+// whatsmeow aborts with "unknown media type" and no bytes are fetched.
 type storedMediaMessage struct {
 	m *store.Message
 }
 
-func (s storedMediaMessage) GetDirectPath() string    { return s.m.DirectPath }
-func (s storedMediaMessage) GetMediaKey() []byte      { return s.m.MediaKey }
-func (s storedMediaMessage) GetFileSHA256() []byte    { return s.m.FileSHA256 }
-func (s storedMediaMessage) GetFileEncSHA256() []byte { return s.m.FileEncSHA256 }
+func (s storedMediaMessage) GetDirectPath() string            { return s.m.DirectPath }
+func (s storedMediaMessage) GetMediaKey() []byte              { return s.m.MediaKey }
+func (s storedMediaMessage) GetFileSHA256() []byte            { return s.m.FileSHA256 }
+func (s storedMediaMessage) GetFileEncSHA256() []byte         { return s.m.FileEncSHA256 }
+func (s storedMediaMessage) GetMediaType() whatsmeow.MediaType { return mediaTypeFor(s.m.MediaType) }
 
 // mediaTypeFor maps our internal media_type string to whatsmeow.MediaType.
 func mediaTypeFor(mt string) whatsmeow.MediaType {
