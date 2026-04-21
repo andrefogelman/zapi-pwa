@@ -79,7 +79,26 @@ export function useChats(sessionId: string | null) {
           }
         }
 
-        setAllChats(visible.map((c: Record<string, unknown>) => {
+        // Merge duplicates: the same contact often shows up twice — once
+        // as <phone>@s.whatsapp.net and once as <digits>@lid. When both exist
+        // and resolve to the same display name, keep the phone row and drop
+        // the @lid sibling. The @lid row is only kept when there's no phone
+        // counterpart (e.g., LID-only contacts).
+        const phoneNames = new Set<string>();
+        for (const c of visible) {
+          const jid = c.jid as string;
+          if (jid.endsWith("@s.whatsapp.net")) {
+            const name = (c.name as string) || "";
+            if (name && !jid.startsWith(name)) phoneNames.add(name);
+          }
+        }
+        const deduped = visible.filter((c) => {
+          const jid = c.jid as string;
+          if (!jid.endsWith("@lid")) return true;
+          const name = (c.name as string) || "";
+          return !phoneNames.has(name);
+        });
+        setAllChats(deduped.map((c: Record<string, unknown>) => {
           const jid = c.jid as string;
           const hasAvatar = Boolean(c.hasAvatar);
           // Build authenticated URL to our avatar endpoint when one is cached
