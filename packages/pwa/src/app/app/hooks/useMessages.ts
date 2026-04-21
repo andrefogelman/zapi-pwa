@@ -53,6 +53,11 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
   // Incremented on each loadMessages call so stale async responses from a
   // previous chat don't overwrite the current one.
   const fetchVersionRef = useRef(0);
+  // In-memory per-chat buffer: survives chat switches so reopening a chat
+  // renders instantly with the last-known messages while the refresh fetch
+  // runs in the background. Keyed by chatJid; lives as long as the hook
+  // instance (i.e. until the user navigates away from /app or reloads).
+  const cacheRef = useRef<Map<string, Message[]>>(new Map());
 
   // Rewrite relative mediaUrl ("media/:jid/:msgId") into a full proxy URL
   // with the user's access token so <audio>/<img> src can hit it directly.
@@ -84,14 +89,26 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
   const loadMessages = useCallback(async () => {
     if (!chatJid) return;
     const version = ++fetchVersionRef.current;
-    setMessages([]);
-    setLoading(true);
+    // Serve from the cache immediately so returning to a chat doesn't flash
+    // a spinner. The network fetch still runs to catch anything new.
+    const cached = cacheRef.current.get(chatJid);
+    if (cached && cached.length > 0) {
+      setMessages(cached);
+      setLoading(false);
+    } else {
+      setMessages([]);
+      setLoading(true);
+    }
     setHasOlder(true);
     initialLoad.current = true;
     const data = await fetcher(`messages/${encodeURIComponent(chatJid)}?limit=80`);
     // Discard response if the user has already switched to another chat.
     if (version !== fetchVersionRef.current) return;
-    if (Array.isArray(data)) setMessages(data.map(enrichMessage));
+    if (Array.isArray(data)) {
+      const enriched = data.map(enrichMessage);
+      setMessages(enriched);
+      cacheRef.current.set(chatJid, enriched);
+    }
     setLoading(false);
   }, [chatJid, fetcher, enrichMessage]);
 
@@ -481,7 +498,12 @@ export function useMessages(sessionId: string | null, chatJid: string | null) {
   // latest ts without having `messages` in its dep list — re-creating the
   // interval on every setMessages was causing a runaway loop.
   const messagesRef = useRef<Message[]>([]);
-  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => {
+    messagesRef.current = messages;
+    // Write-through to the per-chat cache so newer/older messages picked up
+    // by polling, loadOlder, send, and delete all persist across switches.
+    if (chatJid) cacheRef.current.set(chatJid, messages);
+  }, [messages, chatJid]);
 
   // --- Poll for new messages every 3s ---
   // Pauses when tab is hidden so battery/quota aren't burned on background.
