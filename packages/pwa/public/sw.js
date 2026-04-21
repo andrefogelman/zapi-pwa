@@ -1,6 +1,41 @@
 // Bump CACHE_NAME to invalidate old caches on deploy. Keep in sync across
 // versions so users' stale caches get wiped the next time they open the app.
-const CACHE_NAME = "zapi-pwa-v3";
+const CACHE_NAME = "zapi-pwa-v4";
+// Media is content-addressed by (chatJid, msgId) — the bytes for a given
+// msgId never change. Cache it aggressively, across sessions, in its own
+// bucket so we can cap and purge independently of the app shell.
+const MEDIA_CACHE = "zapi-media-v1";
+// Soft cap: when the media cache grows past this, evict the oldest entries
+// until we're back under. 800 entries ≈ a few hundred MB in practice.
+const MEDIA_CACHE_MAX = 800;
+
+// Build a cache key that drops the auth `token` query param so re-logging in
+// doesn't invalidate the entire media library. Kept as a Request so the
+// cache API treats it like a normal entry.
+function mediaCacheKey(request) {
+  const u = new URL(request.url);
+  u.searchParams.delete("token");
+  return new Request(u.toString(), { method: "GET" });
+}
+
+// Trim to MEDIA_CACHE_MAX by deleting oldest insertions. keys() returns in
+// insertion order so the first N over the cap are the least recently added.
+async function trimMediaCache() {
+  const cache = await caches.open(MEDIA_CACHE);
+  const keys = await cache.keys();
+  if (keys.length <= MEDIA_CACHE_MAX) return;
+  const excess = keys.length - MEDIA_CACHE_MAX;
+  for (let i = 0; i < excess; i++) await cache.delete(keys[i]);
+}
+
+// True when the path points at a binary asset we want persisted across
+// sessions: message media and contact avatars served through the proxy.
+function isMediaPath(pathname) {
+  return (
+    pathname.startsWith("/api/waclaw/") &&
+    (pathname.includes("/media/") || pathname.includes("/avatar/"))
+  );
+}
 
 // Only cache permanent assets at install time. HTML pages MUST NOT be cached
 // here — they reference hashed _next/static chunks that change every deploy.
@@ -25,7 +60,8 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)));
+      const keep = new Set([CACHE_NAME, MEDIA_CACHE]);
+      await Promise.all(keys.filter((k) => !keep.has(k)).map((k) => caches.delete(k)));
       await self.clients.claim();
     })()
   );
@@ -64,6 +100,33 @@ self.addEventListener("fetch", (event) => {
           return res;
         });
       })
+    );
+    return;
+  }
+
+  // Media / avatars: cache-first with a token-less key so re-login doesn't
+  // invalidate the library. Bytes are immutable per (chatJid, msgId), so a
+  // cache hit can skip the network entirely — which is what makes reopening
+  // a chat show every thumbnail instantly even across reloads or days later.
+  if (isMediaPath(url.pathname)) {
+    const key = mediaCacheKey(req);
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(MEDIA_CACHE);
+        const cached = await cache.match(key);
+        if (cached) return cached;
+        try {
+          const res = await fetch(req);
+          if (res.ok) {
+            // Clone before consuming — cache.put takes a fresh body.
+            cache.put(key, res.clone()).then(trimMediaCache).catch(() => {});
+          }
+          return res;
+        } catch (err) {
+          // Network dead: return whatever we have, even a stale match.
+          return cached || new Response("Offline", { status: 503 });
+        }
+      })()
     );
     return;
   }
