@@ -491,6 +491,9 @@ export default function AppMain() {
       <TaskCreateModal
         open={taskCreateOpen}
         onClose={() => setTaskCreateOpen(false)}
+        instances={instances}
+        activeInstanceId={activeInstanceId}
+        chats={chats}
         onCreate={createTask}
       />
 

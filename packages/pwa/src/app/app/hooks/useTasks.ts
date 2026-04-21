@@ -91,6 +91,8 @@ export function useTasks() {
     description?: string;
     priority?: string;
     due_date?: string;
+    instance_id?: string;
+    participants?: { contact_jid: string; contact_name?: string }[];
   }) => {
     if (!session?.access_token) return null;
     const res = await fetch("/api/tasks", {
