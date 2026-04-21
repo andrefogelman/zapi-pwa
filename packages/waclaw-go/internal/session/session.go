@@ -9,11 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	waevents "github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/events"
 	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/store"
 	"github.com/rs/zerolog"
 	"go.mau.fi/whatsmeow"
@@ -149,6 +151,9 @@ func (s *Session) SendText(ctx context.Context, to, text, quotedMsgID string) (s
 	if err != nil {
 		return "", err
 	}
+	s.persistOutgoing(jid, resp.ID, resp.Timestamp, store.Message{
+		Text: text,
+	}, nil)
 	return resp.ID, nil
 }
 
@@ -229,6 +234,29 @@ func (s *Session) SendFile(ctx context.Context, to string, data []byte, filename
 	if err != nil {
 		return "", err
 	}
+	outMsg := store.Message{
+		Text:          caption, // for images/videos, caption is the body
+		MediaCaption:  caption,
+		Filename:      filename,
+		MimeType:      mimeType,
+		DirectPath:    uploaded.DirectPath,
+		MediaKey:      uploaded.MediaKey,
+		FileSHA256:    uploaded.FileSHA256,
+		FileEncSHA256: uploaded.FileEncSHA256,
+		FileLength:    int64(len(data)),
+	}
+	switch mt {
+	case whatsmeow.MediaImage:
+		outMsg.MediaType = "image"
+	case whatsmeow.MediaAudio:
+		outMsg.MediaType = "audio"
+		outMsg.Text = "" // audio has no text body
+	case whatsmeow.MediaVideo:
+		outMsg.MediaType = "video"
+	default:
+		outMsg.MediaType = "document"
+	}
+	s.persistOutgoing(jid, resp.ID, resp.Timestamp, outMsg, data)
 	return resp.ID, nil
 }
 
@@ -324,6 +352,98 @@ func mediaTypeFromMime(mime string) whatsmeow.MediaType {
 		return whatsmeow.MediaVideo
 	default:
 		return whatsmeow.MediaDocument
+	}
+}
+
+// persistOutgoing stores a message we just sent in the local DB, bumps the
+// chat's last_message_ts, writes media bytes to disk when provided, and
+// publishes a wire event so SSE subscribers see the message in real time.
+//
+// This exists because whatsmeow does NOT fire events.Message for messages
+// the same client just sent — without this, falabem's own outgoing messages
+// would never appear in the chat view (only replies from the other side
+// would, because those come in from the network).
+//
+// rawMedia is the original bytes: supplied by SendFile so we can skip a
+// round-trip to the CDN; pass nil for text-only messages.
+func (s *Session) persistOutgoing(to types.JID, msgID string, sentAt time.Time, base store.Message, rawMedia []byte) {
+	if s.store == nil || msgID == "" {
+		return
+	}
+	ts := sentAt.Unix()
+	if ts <= 0 {
+		ts = time.Now().Unix()
+	}
+
+	chatJID := to.String()
+	chatLID := ""
+	if to.Server == types.HiddenUserServer {
+		chatLID = chatJID
+	}
+
+	// Identify ourselves as sender when the device has a known JID/LID.
+	senderJID, senderLID := "", ""
+	if dev := s.client.Store; dev != nil {
+		if dev.ID != nil {
+			senderJID = dev.ID.String()
+		}
+		if lid := dev.LID; !lid.IsEmpty() {
+			senderLID = lid.String()
+		}
+	}
+
+	m := base
+	m.ChatJID = chatJID
+	m.ChatLID = chatLID
+	m.MsgID = msgID
+	m.SenderJID = senderJID
+	m.SenderLID = senderLID
+	m.Ts = ts
+	m.FromMe = true
+
+	if err := s.store.InsertMessage(m); err != nil {
+		s.log.Error().Err(err).Str("msg_id", msgID).Msg("persist outgoing failed")
+		return
+	}
+
+	_ = s.store.UpsertChat(store.Chat{
+		JID:           chatJID,
+		LID:           chatLID,
+		Kind:          chatKind(chatJID),
+		LastMessageTs: ts,
+	})
+
+	// If SendFile handed us the original bytes, write them to the same path
+	// the media-queue worker would have used, so the file is available
+	// immediately without a CDN round-trip.
+	if len(rawMedia) > 0 && m.MediaType != "" {
+		mediaDir := filepath.Join(s.StoreDir, "media", chatJID)
+		if err := os.MkdirAll(mediaDir, 0o700); err == nil {
+			localPath := filepath.Join(mediaDir, msgID)
+			if err := os.WriteFile(localPath, rawMedia, 0o600); err == nil {
+				_ = s.store.UpdateLocalPath(chatJID, msgID, localPath, time.Now().Unix())
+			}
+		}
+	}
+
+	// Publish so SSE clients update in real time.
+	wireEvt, err := waevents.TranslateMessage(waevents.TranslateInput{
+		SessionID:  s.ID,
+		MessageID:  msgID,
+		ChatJID:    chatJID,
+		ChatLID:    chatLID,
+		SenderJID:  senderJID,
+		SenderLID:  senderLID,
+		FromMe:     true,
+		Timestamp:  ts,
+		Text:       m.Text,
+		MediaType:  m.MediaType,
+		MimeType:   m.MimeType,
+		FileLength: m.FileLength,
+		MediaBaseURL: s.handlerDeps.MediaBaseURL,
+	})
+	if err == nil {
+		s.handlerDeps.Bus.Publish(wireEvt)
 	}
 }
 
