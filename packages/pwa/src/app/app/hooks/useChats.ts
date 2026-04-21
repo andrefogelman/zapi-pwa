@@ -79,25 +79,21 @@ export function useChats(sessionId: string | null) {
           }
         }
 
-        // Merge duplicates: the same contact often shows up twice — once
-        // as <phone>@s.whatsapp.net and once as <digits>@lid. When both exist
-        // and resolve to the same display name, keep the phone row and drop
-        // the @lid sibling. The @lid row is only kept when there's no phone
-        // counterpart (e.g., LID-only contacts).
-        const phoneNames = new Set<string>();
+        // Dedup phone+lid representations of the same contact. The backend
+        // computes identityKey by following the phone↔lid pairing in the
+        // contacts table (even with device :NN suffixes). Same key → same
+        // contact even when display names differ (e.g. Fernando Setton /
+        // Nando — full_name vs push_name). Keep the freshest row.
+        const byIdentity = new Map<string, Record<string, unknown>>();
         for (const c of visible) {
-          const jid = c.jid as string;
-          if (jid.endsWith("@s.whatsapp.net")) {
-            const name = (c.name as string) || "";
-            if (name && !jid.startsWith(name)) phoneNames.add(name);
+          const key = (c.identityKey as string) || (c.jid as string);
+          const ts = (c.lastTs as number) || 0;
+          const existing = byIdentity.get(key);
+          if (!existing || ((existing.lastTs as number) || 0) < ts) {
+            byIdentity.set(key, c);
           }
         }
-        const deduped = visible.filter((c) => {
-          const jid = c.jid as string;
-          if (!jid.endsWith("@lid")) return true;
-          const name = (c.name as string) || "";
-          return !phoneNames.has(name);
-        });
+        const deduped = Array.from(byIdentity.values());
         setAllChats(deduped.map((c: Record<string, unknown>) => {
           const jid = c.jid as string;
           const hasAvatar = Boolean(c.hasAvatar);

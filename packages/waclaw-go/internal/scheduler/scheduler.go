@@ -6,6 +6,7 @@ package scheduler
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -23,12 +24,17 @@ const (
 
 // scheduledMessage mirrors the Supabase row shape.
 type scheduledMessage struct {
-	ID               string `json:"id"`
-	WaclawSessionID  string `json:"waclaw_session_id"`
-	ChatJID          string `json:"chat_jid"`
-	Text             string `json:"text"`
-	ScheduledFor     string `json:"scheduled_for"`
-	Status           string `json:"status"`
+	ID              string `json:"id"`
+	WaclawSessionID string `json:"waclaw_session_id"`
+	ChatJID         string `json:"chat_jid"`
+	Text            string `json:"text"`
+	ScheduledFor    string `json:"scheduled_for"`
+	Status          string `json:"status"`
+	// Media attachment is optional; when set, the scheduler treats this as a
+	// file send (text becomes the caption).
+	MediaBase64   string `json:"media_base64"`
+	MediaFilename string `json:"media_filename"`
+	MediaMimeType string `json:"media_mime_type"`
 }
 
 // Scheduler polls Supabase REST API for pending messages and dispatches them.
@@ -141,11 +147,33 @@ func (s *Scheduler) process(ctx context.Context, msg scheduledMessage) {
 		return
 	}
 
-	// Send
-	if _, err := sess.SendText(ctx, msg.ChatJID, msg.Text, ""); err != nil {
-		log.Error().Err(err).Msg("send failed")
-		s.updateFailed(ctx, msg.ID, err.Error())
-		return
+	// Send: media-first when an attachment is present (text becomes caption).
+	if msg.MediaBase64 != "" {
+		data, err := base64.StdEncoding.DecodeString(msg.MediaBase64)
+		if err != nil {
+			log.Error().Err(err).Msg("decode media failed")
+			s.updateFailed(ctx, msg.ID, "decode media: "+err.Error())
+			return
+		}
+		filename := msg.MediaFilename
+		if filename == "" {
+			filename = "arquivo"
+		}
+		mime := msg.MediaMimeType
+		if mime == "" {
+			mime = "application/octet-stream"
+		}
+		if _, err := sess.SendFile(ctx, msg.ChatJID, data, filename, mime, msg.Text); err != nil {
+			log.Error().Err(err).Msg("send-file failed")
+			s.updateFailed(ctx, msg.ID, err.Error())
+			return
+		}
+	} else {
+		if _, err := sess.SendText(ctx, msg.ChatJID, msg.Text, ""); err != nil {
+			log.Error().Err(err).Msg("send failed")
+			s.updateFailed(ctx, msg.ID, err.Error())
+			return
+		}
 	}
 
 	// Mark sent

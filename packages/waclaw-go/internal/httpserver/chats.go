@@ -41,6 +41,7 @@ func (s *Server) handleChats(w http.ResponseWriter, r *http.Request) {
 			"hasAvatar":    avatars.Exists(sess.StoreDir, c.JID),
 			"pinned":       c.Pinned,
 			"manualUnread": c.ManualUnread,
+			"identityKey":  c.IdentityKey,
 		}
 		if c.LID != "" {
 			row["lid"] = c.LID

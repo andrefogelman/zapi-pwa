@@ -16,6 +16,10 @@ type Chat struct {
 	ManualUnread  bool
 	MutedUntil    int64
 	Blocked       bool
+	// IdentityKey collapses phone+lid duplicates. When the contacts table
+	// links two JIDs (possibly with :NN device suffixes), both chats share
+	// the same identity_key, letting the PWA keep only the freshest entry.
+	IdentityKey string
 
 	// Read-only fields populated by GetChats:
 	LastMessage string
@@ -155,7 +159,31 @@ func (s *Store) GetChats() ([]Chat, error) {
 			COALESCE((SELECT ct.blocked FROM contacts ct WHERE ct.jid = c.jid OR ct.jid = c.lid LIMIT 1), 0) AS blocked,
 			(SELECT COUNT(*) FROM messages m WHERE m.chat_jid = c.jid) AS msg_count,
 			(SELECT text FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC, rowid DESC LIMIT 1) AS last_message,
-			(SELECT sender_name FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC, rowid DESC LIMIT 1) AS last_sender
+			(SELECT sender_name FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC, rowid DESC LIMIT 1) AS last_sender,
+			-- Identity key: the "phone JID root" when this chat corresponds to a
+			-- contact whose contacts table row pairs it with a phone JID (even
+			-- when the row has a :NN device-suffix). Lets the PWA collapse the
+			-- phone+lid duplicates into a single entry, including the case
+			-- where full_name and push_name differ (e.g. Fernando Setton vs Nando).
+			COALESCE(
+				(SELECT CASE
+					WHEN instr(ct.jid, ':') > 0 AND instr(ct.jid, '@s.whatsapp.net') > 0
+						THEN substr(ct.jid, 1, instr(ct.jid, ':') - 1) || '@s.whatsapp.net'
+					WHEN ct.jid LIKE '%@s.whatsapp.net' THEN ct.jid
+					ELSE NULL
+				END
+				FROM contacts ct
+				WHERE ct.jid LIKE '%@s.whatsapp.net%' AND (
+					ct.jid = c.jid
+					OR ct.lid = c.jid
+					OR (c.lid IS NOT NULL AND c.lid != '' AND (ct.jid = c.lid OR ct.lid = c.lid))
+					OR (instr(ct.jid, ':') > 0 AND substr(ct.jid, 1, instr(ct.jid, ':') - 1) || '@s.whatsapp.net' = c.jid)
+					OR (instr(ct.lid, ':') > 0 AND substr(ct.lid, 1, instr(ct.lid, ':') - 1) || '@lid' = c.jid)
+				)
+				ORDER BY length(ct.jid) ASC
+				LIMIT 1),
+				c.jid
+			) AS identity_key
 		FROM chats c
 		LEFT JOIN groups g ON c.jid = g.jid
 		WHERE c.last_message_ts > 0 AND COALESCE(c.archived, 0) = 0
@@ -171,7 +199,7 @@ func (s *Store) GetChats() ([]Chat, error) {
 		var c Chat
 		var lastMsg, lastSender sql.NullString
 		var pinned, manualUnread, blocked int
-		if err := rows.Scan(&c.JID, &c.LID, &c.Name, &c.Kind, &c.LastMessageTs, &pinned, &manualUnread, &c.MutedUntil, &blocked, &c.MsgCount, &lastMsg, &lastSender); err != nil {
+		if err := rows.Scan(&c.JID, &c.LID, &c.Name, &c.Kind, &c.LastMessageTs, &pinned, &manualUnread, &c.MutedUntil, &blocked, &c.MsgCount, &lastMsg, &lastSender, &c.IdentityKey); err != nil {
 			return nil, err
 		}
 		c.Pinned = pinned != 0
