@@ -6,6 +6,7 @@ import { linkify } from "../lib/linkify";
 import type { Task, TaskComment, TaskConversation, TaskMessage, TaskParticipant } from "../hooks/useTasks";
 import type { Instance } from "../hooks/useInstances";
 import { useTaskConversationMessages } from "../hooks/useTaskConversationMessages";
+import { useTaskThread } from "../hooks/useTaskThread";
 
 interface Props {
   task: Task | null;
@@ -37,6 +38,7 @@ export function TaskDetailModal({
 }: Props) {
   const [commentInput, setCommentInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [visibility, setVisibility] = useState<"all" | "internal">("all");
   const [activeTab, setActiveTab] = useState<"thread" | "links">("thread");
   const [expandedMsg, setExpandedMsg] = useState<string | null>(null);
 
@@ -50,13 +52,25 @@ export function TaskDetailModal({
     task?.status,
     30,
   );
+  // When the task has a WA group, this hook is the source of truth for the
+  // thread. When it doesn't, items is empty and we fall back to the legacy
+  // comments + pinned messages render path.
+  const { items: threadItems, groupJid, post: postThread } = useTaskThread(
+    task?.id ?? null,
+    task?.status,
+  );
+  const hasGroup = !!groupJid;
 
   if (!task) return null;
 
   async function handleSendComment() {
     if (!commentInput.trim() || sending) return;
     setSending(true);
-    await onAddComment(commentInput.trim());
+    if (hasGroup) {
+      await postThread(commentInput.trim(), visibility);
+    } else {
+      await onAddComment(commentInput.trim());
+    }
     setCommentInput("");
     setSending(false);
   }
@@ -174,14 +188,47 @@ export function TaskDetailModal({
                   </div>
                 )}
 
-                {comments.length === 0 && messages.length === 0 && liveMessages.length === 0 && (
+                {hasGroup && threadItems.length === 0 && (
+                  <div style={{ color: "#8696a0", textAlign: "center", padding: 20, fontSize: 13 }}>
+                    Nenhuma mensagem no fórum da tarefa ainda.
+                  </div>
+                )}
+                {hasGroup && threadItems.map((it) => {
+                  const when = new Date(it.timestamp).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+                  const isInternal = it.source === "internal_comment";
+                  return (
+                    <div
+                      key={it.id}
+                      style={{
+                        background: isInternal ? "rgba(245,158,11,0.08)" : "rgba(83,189,235,0.06)",
+                        borderLeft: `2px solid ${isInternal ? "rgba(245,158,11,0.55)" : "rgba(83,189,235,0.5)"}`,
+                        borderRadius: "0 8px 8px 0",
+                        padding: "6px 10px",
+                        marginBottom: 6,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2, gap: 8 }}>
+                        <span style={{ color: isInternal ? "#f59e0b" : "#53bdeb", fontSize: 11, fontWeight: 500 }}>
+                          {isInternal ? "💬 " : ""}
+                          {it.fromMe ? "Você" : (it.senderName ?? "—")}
+                          {isInternal && <span style={{ color: "#8696a0", marginLeft: 6, fontWeight: 400 }}>(interno)</span>}
+                        </span>
+                        <span style={{ color: "#8696a0", fontSize: 10 }}>{when}</span>
+                      </div>
+                      <div style={{ color: "#e9edef", fontSize: 13, whiteSpace: "pre-wrap" }}>
+                        {linkify(it.body ?? "")}
+                      </div>
+                    </div>
+                  );
+                })}
+                {!hasGroup && comments.length === 0 && messages.length === 0 && liveMessages.length === 0 && (
                   <div style={{ color: "#8696a0", textAlign: "center", padding: 20, fontSize: 13 }}>
                     {conversations.length === 0
                       ? "Nenhum comentário ainda. Inicie a discussão ou vincule uma conversa."
                       : "Nenhuma mensagem nas conversas vinculadas."}
                   </div>
                 )}
-                {(() => {
+                {!hasGroup && (() => {
                   type Item =
                     | { kind: "comment"; ts: number; data: TaskComment }
                     | { kind: "live"; ts: number; data: typeof liveMessages[number] };
@@ -252,41 +299,81 @@ export function TaskDetailModal({
                 })()}
               </div>
 
-              {/* Comment input */}
-              <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", gap: 8 }}>
-                <input
-                  style={{
-                    flex: 1,
-                    background: "#2a3942",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "8px 12px",
-                    color: "#e9edef",
-                    fontSize: 13,
-                    outline: "none",
-                  }}
-                  value={commentInput}
-                  onChange={(e) => setCommentInput(e.target.value)}
-                  placeholder="Escreva um comentário..."
-                  onKeyDown={(e) => e.key === "Enter" && handleSendComment()}
-                />
-                <button
-                  onClick={handleSendComment}
-                  disabled={!commentInput.trim() || sending}
-                  style={{
-                    background: "#00a884",
-                    border: "none",
-                    color: "#111b21",
-                    padding: "8px 14px",
-                    borderRadius: 8,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    opacity: !commentInput.trim() || sending ? 0.5 : 1,
-                  }}
-                >
-                  Enviar
-                </button>
+              {/* Composer */}
+              <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                {hasGroup && (
+                  <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                    <button
+                      onClick={() => setVisibility("all")}
+                      style={{
+                        background: visibility === "all" ? "rgba(83,189,235,0.18)" : "transparent",
+                        border: `1px solid ${visibility === "all" ? "#53bdeb" : "rgba(255,255,255,0.08)"}`,
+                        color: visibility === "all" ? "#53bdeb" : "#8696a0",
+                        padding: "4px 10px",
+                        borderRadius: 999,
+                        fontSize: 11,
+                        cursor: "pointer",
+                      }}
+                    >
+                      📢 Grupo (todos veem)
+                    </button>
+                    <button
+                      onClick={() => setVisibility("internal")}
+                      style={{
+                        background: visibility === "internal" ? "rgba(245,158,11,0.18)" : "transparent",
+                        border: `1px solid ${visibility === "internal" ? "#f59e0b" : "rgba(255,255,255,0.08)"}`,
+                        color: visibility === "internal" ? "#f59e0b" : "#8696a0",
+                        padding: "4px 10px",
+                        borderRadius: 999,
+                        fontSize: 11,
+                        cursor: "pointer",
+                      }}
+                    >
+                      💬 Interno (só time)
+                    </button>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    style={{
+                      flex: 1,
+                      background: "#2a3942",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "8px 12px",
+                      color: "#e9edef",
+                      fontSize: 13,
+                      outline: "none",
+                    }}
+                    value={commentInput}
+                    onChange={(e) => setCommentInput(e.target.value)}
+                    placeholder={
+                      hasGroup
+                        ? visibility === "all"
+                          ? "Mensagem para o grupo..."
+                          : "Anotação interna (invisível aos externos)..."
+                        : "Escreva um comentário..."
+                    }
+                    onKeyDown={(e) => e.key === "Enter" && handleSendComment()}
+                  />
+                  <button
+                    onClick={handleSendComment}
+                    disabled={!commentInput.trim() || sending}
+                    style={{
+                      background: "#00a884",
+                      border: "none",
+                      color: "#111b21",
+                      padding: "8px 14px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      opacity: !commentInput.trim() || sending ? 0.5 : 1,
+                    }}
+                  >
+                    Enviar
+                  </button>
+                </div>
               </div>
             </div>
           )}
