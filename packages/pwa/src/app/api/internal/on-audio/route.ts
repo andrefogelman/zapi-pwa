@@ -11,6 +11,7 @@ import { filterMessage } from "@/lib/filter";
 import { transcribeAudio } from "@/lib/openai";
 import * as waclaw from "@/lib/waclaw";
 import { formatReply } from "@/lib/footer";
+import { env } from "@/lib/env";
 
 export async function POST(req: Request): Promise<Response> {
   // 1. Shared-secret auth — daemon has no user identity, so we trust a
