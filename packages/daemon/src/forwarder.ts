@@ -28,21 +28,31 @@ class PermanentForwardError extends Error {}
  */
 // Downloads the audio bytes from waclaw-go so Vercel (which has no Tailscale
 // access) can pass them directly to Whisper without a remote fetch.
+// Retries on HTTP 425 (Too Early — waclaw-go hasn't finished writing the file
+// yet when the SSE event fires) with a 1 s delay per attempt.
 async function fetchAudioBytes(url: string): Promise<string | undefined> {
-  try {
-    const res = await fetch(url, {
-      headers: WACLAW_API_KEY ? { "X-API-Key": WACLAW_API_KEY } : {},
-    });
-    if (!res.ok) {
-      log.warn("audio pre-fetch failed", { url, status: res.status });
+  const headers = WACLAW_API_KEY ? { "X-API-Key": WACLAW_API_KEY } : {};
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) await sleep(1000);
+    try {
+      const res = await fetch(url, { headers });
+      if (res.status === 425) {
+        log.warn("audio not ready yet (425), retrying", { url, attempt });
+        continue;
+      }
+      if (!res.ok) {
+        log.warn("audio pre-fetch failed", { url, status: res.status });
+        return undefined;
+      }
+      const buf = await res.arrayBuffer();
+      return Buffer.from(buf).toString("base64");
+    } catch (err) {
+      log.warn("audio pre-fetch threw", { err: String(err) });
       return undefined;
     }
-    const buf = await res.arrayBuffer();
-    return Buffer.from(buf).toString("base64");
-  } catch (err) {
-    log.warn("audio pre-fetch threw", { err: String(err) });
-    return undefined;
   }
+  log.warn("audio pre-fetch gave up after retries", { url });
+  return undefined;
 }
 
 export async function forwardAudioEvent(event: OnAudioEvent): Promise<OnAudioResponse> {
