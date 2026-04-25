@@ -10,6 +10,7 @@ import { log } from "./logger";
 
 const NEXT_URL = process.env.ZAPI_PWA_URL ?? "https://zapi-pwa.vercel.app";
 const SECRET = process.env.INTERNAL_WEBHOOK_SECRET ?? "";
+const WACLAW_API_KEY = process.env.WACLAW_API_KEY ?? "";
 
 /**
  * Signals that a 4xx response came back and retrying won't help (wrong secret,
@@ -25,8 +26,32 @@ class PermanentForwardError extends Error {}
  * to DAEMON_FORWARD_MAX_RETRIES times with the backoffs in
  * DAEMON_FORWARD_BACKOFF_MS.
  */
+// Downloads the audio bytes from waclaw-go so Vercel (which has no Tailscale
+// access) can pass them directly to Whisper without a remote fetch.
+async function fetchAudioBytes(url: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(url, {
+      headers: WACLAW_API_KEY ? { "X-API-Key": WACLAW_API_KEY } : {},
+    });
+    if (!res.ok) {
+      log.warn("audio pre-fetch failed", { url, status: res.status });
+      return undefined;
+    }
+    const buf = await res.arrayBuffer();
+    return Buffer.from(buf).toString("base64");
+  } catch (err) {
+    log.warn("audio pre-fetch threw", { err: String(err) });
+    return undefined;
+  }
+}
+
 export async function forwardAudioEvent(event: OnAudioEvent): Promise<OnAudioResponse> {
   if (!SECRET) throw new Error("INTERNAL_WEBHOOK_SECRET not set");
+
+  const audio_bytes_base64 = await fetchAudioBytes(event.audio_url);
+  const payload: OnAudioEvent = audio_bytes_base64
+    ? { ...event, audio_bytes_base64 }
+    : event;
 
   let lastErr: unknown;
   for (let attempt = 0; attempt < DAEMON_FORWARD_MAX_RETRIES; attempt++) {
@@ -47,7 +72,7 @@ export async function forwardAudioEvent(event: OnAudioEvent): Promise<OnAudioRes
           "Content-Type": "application/json",
           [INTERNAL_HEADER_SECRET]: SECRET,
         },
-        body: JSON.stringify(event),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {

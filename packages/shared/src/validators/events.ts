@@ -16,6 +16,7 @@ export const OnAudioEventSchema = z.object({
   from_me: z.boolean(),
   is_group: z.boolean(),
   audio_url: z.string().url(),
+  audio_bytes_base64: z.string().optional(),
   audio_duration_seconds: z.number().int().nonnegative(),
   timestamp: z.string().datetime({ offset: true }),
 });

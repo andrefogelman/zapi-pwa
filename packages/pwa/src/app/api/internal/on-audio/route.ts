@@ -120,27 +120,29 @@ export async function POST(req: Request): Promise<Response> {
     } satisfies OnAudioResponse);
   }
 
-  // 7. Download audio + run Whisper
-  // The waclaw-go daemon emits audio_url as http://localhost:3100/... because it
-  // constructs URLs relative to its bind address. The Vercel function runs in the
-  // cloud and cannot reach localhost on worker5, so we rewrite the URL to use the
-  // public Tailscale hostname and authenticate with the shared API key.
-  const resolvedAudioUrl = event.audio_url.replace(
-    /^https?:\/\/localhost(:\d+)?/,
-    env.WACLAW_URL.replace(/\/$/, ""),
-  );
-  const audioHeaders: Record<string, string> =
-    resolvedAudioUrl !== event.audio_url
-      ? { "X-API-Key": env.WACLAW_API_KEY }
-      : {};
-
+  // 7. Run Whisper — use bytes pre-fetched by the daemon when available (the
+  // daemon has direct Tailscale access; Vercel does not). Fall back to a URL
+  // fetch only when bytes are absent (e.g. an old daemon build).
   let transcribedText: string;
   try {
-    const audioRes = await fetch(resolvedAudioUrl, { headers: audioHeaders });
-    if (!audioRes.ok) {
-      throw new Error(`audio download failed: ${audioRes.status} (url: ${resolvedAudioUrl})`);
+    let audioBuffer: ArrayBuffer;
+    if (event.audio_bytes_base64) {
+      audioBuffer = Buffer.from(event.audio_bytes_base64, "base64").buffer as ArrayBuffer;
+    } else {
+      const resolvedAudioUrl = event.audio_url.replace(
+        /^https?:\/\/localhost(:\d+)?/,
+        env.WACLAW_URL.replace(/\/$/, ""),
+      );
+      const audioHeaders: Record<string, string> =
+        resolvedAudioUrl !== event.audio_url
+          ? { "X-API-Key": env.WACLAW_API_KEY }
+          : {};
+      const audioRes = await fetch(resolvedAudioUrl, { headers: audioHeaders });
+      if (!audioRes.ok) {
+        throw new Error(`audio download failed: ${audioRes.status} (url: ${resolvedAudioUrl})`);
+      }
+      audioBuffer = await audioRes.arrayBuffer();
     }
-    const audioBuffer = await audioRes.arrayBuffer();
     transcribedText = await transcribeAudio(audioBuffer, {
       model: config?.neura_model,
       prompt: config?.neura_prompt,
