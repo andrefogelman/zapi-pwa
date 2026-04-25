@@ -3,6 +3,7 @@ import { forwardAudioEvent } from "./forwarder";
 import { log } from "./logger";
 
 const WACLAW_URL = process.env.WACLAW_URL ?? "http://localhost:3100";
+const WACLAW_PUBLIC_URL = process.env.WACLAW_PUBLIC_URL ?? WACLAW_URL;
 const WACLAW_API_KEY = process.env.WACLAW_API_KEY ?? "";
 
 async function main() {
@@ -10,6 +11,7 @@ async function main() {
 
   await connectAndSubscribe({
     waclawUrl: WACLAW_URL,
+    waclawPublicUrl: WACLAW_PUBLIC_URL,
     apiKey: WACLAW_API_KEY,
     onAudioMessage: async (event) => {
       try {

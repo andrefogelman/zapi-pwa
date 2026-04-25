@@ -3,6 +3,7 @@ import { log } from "./logger";
 
 interface ConnectOptions {
   waclawUrl: string;
+  waclawPublicUrl: string;
   apiKey: string;
   onAudioMessage: (event: OnAudioEvent) => Promise<void>;
   onError: (err: unknown) => void;
@@ -65,7 +66,7 @@ async function connect(opts: ConnectOptions): Promise<void> {
       if (!line.startsWith("data: ")) continue;
       try {
         const raw: unknown = JSON.parse(line.slice(6));
-        const audio = extractAudioEvent(raw);
+        const audio = extractAudioEvent(raw, opts.waclawUrl, opts.waclawPublicUrl);
         if (audio) {
           // Fire-and-forget — don't block the event loop waiting for the
           // forwarder. Errors are swallowed here; the caller's onAudioMessage
@@ -91,7 +92,7 @@ async function connect(opts: ConnectOptions): Promise<void> {
  * The raw shape is a hypothesis that must be validated against real waclaw
  * output. Adjust the field mapping as needed after the first curl probe.
  */
-function extractAudioEvent(raw: unknown): OnAudioEvent | null {
+function extractAudioEvent(raw: unknown, waclawUrl: string, waclawPublicUrl: string): OnAudioEvent | null {
   if (!isObject(raw)) return null;
   if (raw.type !== "message") return null;
 
@@ -118,6 +119,13 @@ function extractAudioEvent(raw: unknown): OnAudioEvent | null {
   if (typeof audioUrl !== "string" || !audioUrl) return null;
   if (timestamp == null) return null;
 
+  // Rewrite localhost URL to the public hostname so the Vercel function
+  // (running in the cloud) can download the audio file.
+  const publicAudioUrl = audioUrl.replace(
+    waclawUrl.replace(/\/$/, ""),
+    waclawPublicUrl.replace(/\/$/, ""),
+  );
+
   return {
     waclaw_session_id: sessionId,
     message_id: messageId,
@@ -129,7 +137,7 @@ function extractAudioEvent(raw: unknown): OnAudioEvent | null {
     sender_name: typeof message.sender_name === "string" ? message.sender_name : null,
     from_me: Boolean(message.from_me),
     is_group: chatJid.endsWith("@g.us"),
-    audio_url: audioUrl,
+    audio_url: publicAudioUrl,
     audio_duration_seconds:
       typeof audio.duration_seconds === "number" ? audio.duration_seconds : 0,
     timestamp: new Date(timestamp as string | number).toISOString(),

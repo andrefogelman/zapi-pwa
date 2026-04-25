@@ -120,11 +120,24 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   // 7. Download audio + run Whisper
+  // The waclaw-go daemon emits audio_url as http://localhost:3100/... because it
+  // constructs URLs relative to its bind address. The Vercel function runs in the
+  // cloud and cannot reach localhost on worker5, so we rewrite the URL to use the
+  // public Tailscale hostname and authenticate with the shared API key.
+  const resolvedAudioUrl = event.audio_url.replace(
+    /^https?:\/\/localhost(:\d+)?/,
+    env.WACLAW_URL.replace(/\/$/, ""),
+  );
+  const audioHeaders: Record<string, string> =
+    resolvedAudioUrl !== event.audio_url
+      ? { "X-API-Key": env.WACLAW_API_KEY }
+      : {};
+
   let transcribedText: string;
   try {
-    const audioRes = await fetch(event.audio_url);
+    const audioRes = await fetch(resolvedAudioUrl, { headers: audioHeaders });
     if (!audioRes.ok) {
-      throw new Error(`audio download failed: ${audioRes.status}`);
+      throw new Error(`audio download failed: ${audioRes.status} (url: ${resolvedAudioUrl})`);
     }
     const audioBuffer = await audioRes.arrayBuffer();
     transcribedText = await transcribeAudio(audioBuffer, {
