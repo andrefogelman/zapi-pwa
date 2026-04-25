@@ -9,7 +9,6 @@ import {
 import { getSupabaseServiceRole } from "@/lib/supabase-server";
 import { filterMessage } from "@/lib/filter";
 import { transcribeAudio } from "@/lib/openai";
-import * as waclaw from "@/lib/waclaw";
 import { formatReply } from "@/lib/footer";
 import { env } from "@/lib/env";
 
@@ -218,23 +217,12 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  // 9. Reply to WhatsApp if the decision asks for it. Non-fatal if
-  // waclaw rejects — the transcription is already saved.
-  if (decision.sendReply) {
-    const footer = userSettings?.transcription_footer ?? "Transcrição por IA 😜";
-    const replyText = formatReply(transcribedText, footer);
-    try {
-      await waclaw.sendMessage({
-        sessionId: event.waclaw_session_id,
-        chatJid: event.chat_jid,
-        text: replyText,
-        replyToMessageId: event.message_id,
-      });
-    } catch (err) {
-      console.error("on-audio: failed to send reply to whatsapp:", err);
-      // Do not return failed — the transcription is still valid.
-    }
-  }
+  // 9. Build reply text and return it to the daemon. Vercel has no Tailscale
+  // access so it cannot call waclaw-go directly; the daemon (on worker5)
+  // picks up reply_text and sends it via localhost.
+  const reply_text = decision.sendReply
+    ? formatReply(transcribedText, userSettings?.transcription_footer ?? "Transcrição por IA 😜")
+    : undefined;
 
-  return Response.json({ status: "transcribed" } satisfies OnAudioResponse);
+  return Response.json({ status: "transcribed", reply_text } satisfies OnAudioResponse);
 }

@@ -23,10 +23,15 @@ export const OnAudioEventSchema = z.object({
 
 export type OnAudioEvent = z.infer<typeof OnAudioEventSchema>;
 
-/** Response the Next route returns to the daemon. Used only for logs. */
+/** Response the Next route returns to the daemon. */
 export const OnAudioResponseSchema = z.object({
   status: z.enum(["queued", "skipped", "transcribed", "failed"]),
   reason: z.string().optional(),
+  // When status === "transcribed" and the filter wants a reply, Vercel includes
+  // the formatted reply text so the daemon (which has local Tailscale access)
+  // can send it via waclaw-go directly instead of Vercel trying to reach
+  // worker5 from the cloud.
+  reply_text: z.string().optional(),
 });
 
 export type OnAudioResponse = z.infer<typeof OnAudioResponseSchema>;

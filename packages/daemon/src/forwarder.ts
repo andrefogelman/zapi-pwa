@@ -31,7 +31,7 @@ class PermanentForwardError extends Error {}
 // Retries on HTTP 425 (Too Early — waclaw-go hasn't finished writing the file
 // yet when the SSE event fires) with a 1 s delay per attempt.
 async function fetchAudioBytes(url: string): Promise<string | undefined> {
-  const headers = WACLAW_API_KEY ? { "X-API-Key": WACLAW_API_KEY } : {};
+  const headers: Record<string, string> = WACLAW_API_KEY ? { "X-API-Key": WACLAW_API_KEY } : {};
   for (let attempt = 0; attempt < 4; attempt++) {
     if (attempt > 0) await sleep(1000);
     try {
