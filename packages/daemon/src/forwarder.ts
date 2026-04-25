@@ -99,7 +99,9 @@ export async function forwardAudioEvent(event: OnAudioEvent): Promise<OnAudioRes
       }
 
       // 5xx / transient — record and loop
-      lastErr = new Error(`Next returned ${res.status}`);
+      const errText = await res.text();
+      log.warn("forward 5xx", { attempt, status: res.status, reason: errText });
+      lastErr = new Error(`Next returned ${res.status}: ${errText}`);
     } catch (err) {
       if (err instanceof PermanentForwardError) {
         throw err; // escape the for-loop

@@ -127,7 +127,13 @@ export async function POST(req: Request): Promise<Response> {
   try {
     let audioBuffer: ArrayBuffer;
     if (event.audio_bytes_base64) {
-      audioBuffer = Buffer.from(event.audio_bytes_base64, "base64").buffer as ArrayBuffer;
+      const nodeBuf = Buffer.from(event.audio_bytes_base64, "base64");
+      // Buffer may share an underlying pool; slice to exact bounds so the File
+      // sent to Whisper doesn't contain trailing zero-bytes from the pool.
+      audioBuffer = nodeBuf.buffer.slice(
+        nodeBuf.byteOffset,
+        nodeBuf.byteOffset + nodeBuf.byteLength,
+      ) as ArrayBuffer;
     } else {
       const resolvedAudioUrl = event.audio_url.replace(
         /^https?:\/\/localhost(:\d+)?/,
