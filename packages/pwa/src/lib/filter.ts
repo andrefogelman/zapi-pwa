@@ -64,14 +64,15 @@ export function filterMessage(input: {
     return { action: "process", sendReply: true };
   }
 
-  // Groups: must be authorized
-  if (!group) {
-    return { action: "skip", reason: "group not authorized" };
+  // Own audio in any group: always process and reply so the sender gets the
+  // transcription regardless of whether the group is authorized.
+  if (event.from_me) {
+    return { action: "process", sendReply: group?.send_reply ?? true };
   }
 
-  // Own audio in authorized group: always process
-  if (event.from_me) {
-    return { action: "process", sendReply: group.send_reply };
+  // Others' audio in unauthorized groups: skip
+  if (!group) {
+    return { action: "skip", reason: "group not authorized" };
   }
 
   // Others' audio: only if transcribe_all
