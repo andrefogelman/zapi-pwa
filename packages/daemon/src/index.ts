@@ -8,14 +8,14 @@ const WACLAW_API_KEY = process.env.WACLAW_API_KEY ?? "";
 
 async function sendWaclawReply(sessionId: string, chatJid: string, text: string, replyToId: string) {
   const res = await fetch(
-    `${WACLAW_URL}/sessions/${encodeURIComponent(sessionId)}/send-message`,
+    `${WACLAW_URL}/sessions/${encodeURIComponent(sessionId)}/send`,
     {
       method: "POST",
       headers: { "X-API-Key": WACLAW_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_jid: chatJid, text, reply_to: replyToId }),
+      body: JSON.stringify({ to: chatJid, message: text, quoted_id: replyToId }),
     },
   );
-  if (!res.ok) throw new Error(`waclaw send-message ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`waclaw send ${res.status}: ${await res.text()}`);
 }
 
 async function main() {

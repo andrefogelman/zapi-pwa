@@ -123,14 +123,14 @@ export async function sendMessage(params: {
   replyToMessageId?: string;
 }): Promise<void> {
   const res = await timedFetch(
-    `${env.WACLAW_URL}/sessions/${encodeURIComponent(params.sessionId)}/send-message`,
+    `${env.WACLAW_URL}/sessions/${encodeURIComponent(params.sessionId)}/send`,
     {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({
-        chat_jid: params.chatJid,
-        text: params.text,
-        reply_to: params.replyToMessageId,
+        to: params.chatJid,
+        message: params.text,
+        quoted_id: params.replyToMessageId,
       }),
     }
   );
