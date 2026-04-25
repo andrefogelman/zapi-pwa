@@ -150,7 +150,7 @@ export async function POST(req: Request): Promise<Response> {
       audioBuffer = await audioRes.arrayBuffer();
     }
     transcribedText = await transcribeAudio(audioBuffer, {
-      model: config?.neura_model,
+      // neura_model is for the summarizer (gpt-4o); transcription always uses whisper-1
       prompt: config?.neura_prompt,
       temperature: config?.neura_temperature,
     });
