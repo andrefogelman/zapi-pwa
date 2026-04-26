@@ -40,6 +40,7 @@ export function filterMessage(input: {
   //   - sender_lid (when present) matches connected_lid or a known own LID
   //   - chat_jid matches a known own LID (LID-based DMs to ourselves)
   //   - chat_lid (when present) matches a known own LID
+  //   - chat_jid phone part (before "@") matches a known own phone (self-chat DMs)
   //
   // Group chats never match my_lids via chat_jid because their JID ends in
   // "@g.us", so stray my_lids entries are harmless. For LID-addressed groups
@@ -50,11 +51,14 @@ export function filterMessage(input: {
   ) : false;
   const ownLidMatchChat = instance.my_lids.includes(event.chat_jid) ||
     (event.chat_lid ? instance.my_lids.includes(event.chat_lid) : false);
+  const chatPhone = event.chat_jid.split("@")[0];
+  const ownPhoneMatchChat = instance.my_phones.includes(chatPhone);
   if (
     event.sender_phone === instance.connected_phone ||
     instance.my_phones.includes(event.sender_phone) ||
     ownLidMatchSender ||
-    ownLidMatchChat
+    ownLidMatchChat ||
+    ownPhoneMatchChat
   ) {
     return { action: "skip", reason: "self" };
   }
