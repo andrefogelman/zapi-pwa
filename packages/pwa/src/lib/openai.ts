@@ -14,6 +14,22 @@ export interface TranscribeConfig {
   language?: string;
 }
 
+function isWhisperHallucination(text: string): boolean {
+  const t = text.trim();
+  if (!t) return true;
+  // Same character repeated 10+ times (e.g. "****...", "லலலலல...")
+  if (/^(.)\1{9,}$/.test(t)) return true;
+  // >85% the same word repeated (e.g. "Allāh Allāh Allāh...")
+  const words = t.split(/\s+/);
+  if (words.length >= 10) {
+    const freq = new Map<string, number>();
+    for (const w of words) freq.set(w, (freq.get(w) ?? 0) + 1);
+    const maxCount = Math.max(...freq.values());
+    if (maxCount / words.length > 0.85) return true;
+  }
+  return false;
+}
+
 export async function transcribeAudio(
   audio: ArrayBuffer,
   config: TranscribeConfig = {}
@@ -29,6 +45,11 @@ export async function transcribeAudio(
     temperature: config.temperature,
     language: config.language ?? "pt",
   });
+
+  if (isWhisperHallucination(response.text)) {
+    throw new Error("whisper hallucination detected");
+  }
+
   return response.text;
 }
 
