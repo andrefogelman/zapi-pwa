@@ -65,14 +65,25 @@ export async function generateImage(prompt: string): Promise<{ base64: string; m
   return { base64: b64, mimeType: "image/png" };
 }
 
-export async function summarizeText(text: string): Promise<string> {
+export interface SummarizeConfig {
+  model?: string;
+  prompt?: string;
+  temperature?: number;
+}
+
+export async function summarizeText(
+  text: string,
+  config: SummarizeConfig = {},
+): Promise<string> {
   const response = await getOpenAI().chat.completions.create({
-    model: "gpt-4.1-mini",
-    temperature: 0.3,
+    model: config.model ?? "gpt-4.1-mini",
+    temperature: config.temperature ?? 0.3,
     messages: [
       {
         role: "system",
-        content: "Você é um assistente que resume transcrições de áudio do WhatsApp. Resuma de forma concisa em português, mantendo os pontos principais.",
+        content:
+          config.prompt ??
+          "Você é um assistente que resume transcrições de áudio do WhatsApp. Resuma de forma concisa em português, mantendo os pontos principais.",
       },
       { role: "user", content: `Resuma este áudio transcrito:\n\n${text}` },
     ],

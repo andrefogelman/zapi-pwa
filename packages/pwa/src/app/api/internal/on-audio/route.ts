@@ -8,7 +8,9 @@ import {
 } from "zapi-shared";
 import { getSupabaseServiceRole } from "@/lib/supabase-server";
 import { filterMessage } from "@/lib/filter";
-import { transcribeAudio } from "@/lib/openai";
+import { transcribeAudio, summarizeText } from "@/lib/openai";
+
+const SUMMARIZE_THRESHOLD_SECONDS = 40;
 import { formatReply } from "@/lib/footer";
 import { env } from "@/lib/env";
 
@@ -198,10 +200,29 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
+  // 9. For long audios, summarize with the Neura config (gpt-4o by default).
+  // Whisper transcribes everything verbatim; this gives a TL;DR for the reply.
+  let summary: string | null = null;
+  if (event.audio_duration_seconds >= SUMMARIZE_THRESHOLD_SECONDS) {
+    try {
+      summary = await summarizeText(transcribedText, {
+        model: config?.neura_model,
+        prompt: config?.neura_prompt,
+        temperature: config?.neura_temperature,
+      });
+    } catch (err) {
+      console.error("on-audio: summarize failed", {
+        message_id: messageRow.id,
+        err: String(err),
+      });
+    }
+  }
+
   const { error: trInsertErr } = await supabase.from("transcriptions").insert({
     message_id: messageRow.id,
     instance_id: instance.id,
     text: transcribedText,
+    summary,
     duration_ms: event.audio_duration_seconds * 1000,
   });
   if (trInsertErr) {
@@ -215,11 +236,15 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  // 9. Build reply text and return it to the daemon. Vercel has no Tailscale
+  // 10. Build reply text and return it to the daemon. Vercel has no Tailscale
   // access so it cannot call waclaw-go directly; the daemon (on worker5)
   // picks up reply_text and sends it via localhost.
+  // For long audios with a summary, prepend the summary to the full transcription.
+  const replyBody = summary
+    ? `📝 *Resumo:*\n${summary}\n\n*Transcrição completa:*\n${transcribedText}`
+    : transcribedText;
   const reply_text = decision.sendReply
-    ? formatReply(transcribedText, userSettings?.transcription_footer ?? "Transcrição por IA 😜")
+    ? formatReply(replyBody, userSettings?.transcription_footer ?? "Transcrição por IA 😜")
     : undefined;
 
   return Response.json({ status: "transcribed", reply_text } satisfies OnAudioResponse);
