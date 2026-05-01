@@ -125,10 +125,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "persist failed" }, { status: 500 });
   }
 
-  const isSelf = fromMe === true && (
-    phone === instance.connected_phone ||
-    (instance.my_phones as string[]).includes(phone ?? "")
-  );
+  const norm = (p: string) => p.split("@")[0].replace(/\D/g, "");
+  const chatPhone = norm(phone ?? "");
+  const ownPhones = [instance.connected_phone, ...(instance.my_phones as string[])]
+    .filter(Boolean).map(p => norm(p!));
+  const isSelf = chatPhone !== "" && ownPhones.includes(chatPhone);
 
   if (msgType === "audio" && mediaUrl && data && !isSelf) {
     await TranscriptionQueue.enqueue({
