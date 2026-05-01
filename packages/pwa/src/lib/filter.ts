@@ -63,8 +63,9 @@ export function filterMessage(input: {
     return { action: "skip", reason: "self" };
   }
 
-  // DMs: always process, always reply
+  // DMs: skip own messages (from_me = Notes to self or sent audio we don't need back)
   if (!event.is_group) {
+    if (event.from_me) return { action: "skip", reason: "from_me DM" };
     return { action: "process", sendReply: true };
   }
 
