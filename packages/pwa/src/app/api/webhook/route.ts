@@ -71,7 +71,7 @@ export async function POST(request: Request) {
 
   const { data: instance } = await supabase
     .from("instances")
-    .select("id")
+    .select("id, connected_phone, my_phones")
     .eq("zapi_instance_id", instanceId)
     .single();
 
@@ -125,7 +125,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "persist failed" }, { status: 500 });
   }
 
-  if (msgType === "audio" && mediaUrl && data) {
+  const isSelf = fromMe === true && (
+    phone === instance.connected_phone ||
+    (instance.my_phones as string[]).includes(phone ?? "")
+  );
+
+  if (msgType === "audio" && mediaUrl && data && !isSelf) {
     await TranscriptionQueue.enqueue({
       instanceId: instance.id,
       messageId: data.id,
