@@ -130,8 +130,6 @@ export async function POST(request: Request) {
   const ownPhones = [instance.connected_phone, ...(instance.my_phones as string[])]
     .filter(Boolean).map(p => norm(p!));
   const isSelf = chatPhone !== "" && ownPhones.includes(chatPhone);
-  console.log(`[webhook] phone=${phone} fromMe=${fromMe} chatPhone=${chatPhone} ownPhones=${JSON.stringify(ownPhones)} isSelf=${isSelf} msgType=${msgType}`);
-
   if (msgType === "audio" && mediaUrl && data && !isSelf) {
     await TranscriptionQueue.enqueue({
       instanceId: instance.id,
