@@ -180,6 +180,10 @@ func (s *Session) buildEventHandler() func(evt interface{}) {
 			// Passive backfill for recently active chats. Runs in background
 			// so it doesn't block the event loop. Small N to stay polite.
 			go s.passiveBackfillOnConnect(20, 50)
+			// Copy contact full names from whatsmeow's session.db into our
+			// store. Covers contacts who are in the phone's address book but
+			// never sent a direct message to this session.
+			go s.backfillContactNamesFromWAStore()
 			// Resolve group subjects for groups whose name wasn't captured
 			// by history sync (legacy `<phone>-<timestamp>` chat IDs show up
 			// as raw JIDs in the UI without this).

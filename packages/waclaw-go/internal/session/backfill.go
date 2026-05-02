@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"database/sql"
+	"path/filepath"
 	"time"
 
 	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/store"
@@ -115,6 +117,56 @@ func (s *Session) backfillGroupNames(maxGroups int) {
 		time.Sleep(1 * time.Second)
 	}
 	s.log.Info().Int("resolved", resolved).Msg("group name backfill done")
+}
+
+// backfillContactNamesFromWAStore copies contact names from whatsmeow's own
+// session.db (whatsmeow_contacts table) into waclaw.db (contacts table).
+//
+// Why: whatsmeow caches the full phone-book sync in session.db as part of
+// app-state. Our contacts table only gets populated from push_name events
+// (when a contact messages us) and events.Contact (incremental syncs).
+// Contacts who are in the address book but never initiated a message stay
+// nameless in waclaw.db, causing the chat list to show raw phone numbers.
+// This sweep fixes that at connect time, costing a single multi-row INSERT.
+func (s *Session) backfillContactNamesFromWAStore() {
+	if s.store == nil {
+		return
+	}
+	sessionDBPath := filepath.Join(s.StoreDir, "session.db")
+	src, err := sql.Open("sqlite3", "file:"+sessionDBPath+"?mode=ro&_busy_timeout=5000")
+	if err != nil {
+		s.log.Warn().Err(err).Msg("contact name backfill: open session.db failed")
+		return
+	}
+	defer src.Close()
+
+	rows, err := src.Query(`
+		SELECT their_jid, COALESCE(full_name,''), COALESCE(first_name,'')
+		FROM whatsmeow_contacts
+		WHERE NULLIF(full_name,'') IS NOT NULL OR NULLIF(first_name,'') IS NOT NULL
+	`)
+	if err != nil {
+		s.log.Warn().Err(err).Msg("contact name backfill: query failed")
+		return
+	}
+	defer rows.Close()
+
+	copied := 0
+	for rows.Next() {
+		var jid, full, first string
+		if err := rows.Scan(&jid, &full, &first); err != nil {
+			continue
+		}
+		if err := s.store.UpsertContact(store.Contact{
+			JID:       jid,
+			FullName:  full,
+			FirstName: first,
+		}); err != nil {
+			continue
+		}
+		copied++
+	}
+	s.log.Info().Int("copied", copied).Msg("contact name backfill done")
 }
 
 // rehydratePendingDownloads re-enqueues media download jobs for messages
