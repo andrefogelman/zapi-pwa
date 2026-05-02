@@ -199,6 +199,8 @@ func (s *Session) buildEventHandler() func(evt interface{}) {
 			s.log.Warn().Bool("on_connect", v.OnConnect).Msg("whatsapp logged out")
 		case *waevt.PushName:
 			s.handlePushName(v)
+		case *waevt.Contact:
+			s.handleContact(v)
 		case *waevt.PairSuccess:
 			s.log.Info().Str("jid", v.ID.String()).Msg("pair success")
 			s.setState(StateConnected)

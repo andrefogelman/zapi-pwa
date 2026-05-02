@@ -317,6 +317,29 @@ func (s *Session) handlePushName(evt *waevt.PushName) {
 	}
 }
 
+// handleContact persists contact names from WhatsApp's app-state sync.
+// This event fires for every contact in the phone's address book when
+// whatsmeow performs a full app-state sync on connect (FromFullSync=true),
+// and incrementally when a contact is modified on another device.
+// It is the only reliable source of FullName for contacts who have never
+// sent a message to this session.
+func (s *Session) handleContact(evt *waevt.Contact) {
+	if s.store == nil || evt.Action == nil {
+		return
+	}
+	c := store.Contact{
+		JID:       evt.JID.String(),
+		FullName:  evt.Action.GetFullName(),
+		FirstName: evt.Action.GetFirstName(),
+	}
+	if c.FullName == "" && c.FirstName == "" {
+		return
+	}
+	if err := s.store.UpsertContact(c); err != nil {
+		s.log.Warn().Err(err).Str("jid", c.JID).Msg("upsert contact from sync failed")
+	}
+}
+
 
 // chatKind infers the chat type from the JID suffix.
 func chatKind(jid string) string {
