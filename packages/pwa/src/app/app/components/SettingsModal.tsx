@@ -708,6 +708,7 @@ export function SettingsModal({
                               style={{
                                 textAlign: "center",
                                 padding: "0.5rem",
+                                fontWeight: 700,
                               }}
                             >
                               Transcrever terceiros
@@ -716,6 +717,8 @@ export function SettingsModal({
                               style={{
                                 textAlign: "center",
                                 padding: "0.5rem",
+                                fontWeight: 400,
+                                color: "#888",
                               }}
                             >
                               Responder no chat
@@ -734,6 +737,7 @@ export function SettingsModal({
                                 <input
                                   type="checkbox"
                                   checked={g.transcribe_all}
+                                  style={{ transform: "scale(1.3)" }}
                                   onChange={(e) =>
                                     toggleGroupFlag(
                                       g.group_id,
@@ -743,7 +747,7 @@ export function SettingsModal({
                                   }
                                 />
                               </td>
-                              <td style={{ textAlign: "center" }}>
+                              <td style={{ textAlign: "center", opacity: 0.75 }}>
                                 <input
                                   type="checkbox"
                                   checked={g.send_reply}
