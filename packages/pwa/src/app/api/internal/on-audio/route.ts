@@ -42,13 +42,19 @@ export async function POST(req: Request): Promise<Response> {
   // first message arrives).
   const { data: instance } = await supabase
     .from("instances")
-    .select("id, user_id, my_phones, my_lids, connected_phone, connected_lid")
+    .select("id, user_id, my_phones, my_lids, connected_phone, connected_lid, transcription_enabled")
     .eq("waclaw_session_id", event.waclaw_session_id)
     .maybeSingle();
   if (!instance) {
     return Response.json({
       status: "skipped",
       reason: "session not bound",
+    } satisfies OnAudioResponse);
+  }
+  if (instance.transcription_enabled === false) {
+    return Response.json({
+      status: "skipped",
+      reason: "transcription disabled",
     } satisfies OnAudioResponse);
   }
 
