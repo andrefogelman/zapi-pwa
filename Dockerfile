@@ -5,7 +5,7 @@
 FROM oven/bun:1 AS builder
 WORKDIR /app
 COPY . .
-RUN bun install --frozen-lockfile
+RUN bun install
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN bun --filter pwa build
 
