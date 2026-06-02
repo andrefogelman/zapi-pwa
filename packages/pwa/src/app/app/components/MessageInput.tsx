@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 import type { ReplyTarget } from "../hooks/useMessages";
 import { AttachMenu } from "./AttachMenu";
-import { AIImageModal } from "./AIImageModal";
 import { ContactPickerModal } from "./ContactPickerModal";
 import { VoiceRecorder } from "./VoiceRecorder";
 
@@ -27,7 +26,6 @@ export function MessageInput({
   onCancelReply,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [aiModalOpen, setAiModalOpen] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
@@ -81,7 +79,6 @@ export function MessageInput({
             onPickPhoto={() => photoInputRef.current?.click()}
             onPickDocument={() => documentInputRef.current?.click()}
             onPickContact={() => setContactModalOpen(true)}
-            onPickAIImage={() => setAiModalOpen(true)}
           />
         </div>
         <input
@@ -121,11 +118,6 @@ export function MessageInput({
         onChange={handleFileChange}
       />
 
-      <AIImageModal
-        open={aiModalOpen}
-        onClose={() => setAiModalOpen(false)}
-        onSendGenerated={onSendFile}
-      />
       <ContactPickerModal
         open={contactModalOpen}
         onClose={() => setContactModalOpen(false)}

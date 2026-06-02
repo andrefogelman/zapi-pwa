@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { requireSuperAdmin, errorResponse } from "@/lib/admin-auth";
 
-const ALLOWED_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "whisper-1"];
+const ALLOWED_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "openai/gpt-oss-120b"];
 
 export async function GET(request: Request) {
   try {

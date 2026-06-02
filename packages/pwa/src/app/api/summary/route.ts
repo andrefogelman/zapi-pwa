@@ -126,9 +126,9 @@ ${logToSummarize}`;
 
   let summary: string;
   try {
-    const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey: env.GROQ_API_KEY, baseURL: "https://api.groq.com/openai/v1" });
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "llama-3.3-70b-versatile",
       temperature: 0.3,
       messages: [
         {

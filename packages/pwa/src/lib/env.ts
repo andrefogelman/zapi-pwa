@@ -13,7 +13,9 @@ function first(...names: string[]): string {
 }
 
 export const env = {
-  get OPENAI_API_KEY() { return required("OPENAI_API_KEY"); },
+  // Groq serves transcription (Whisper) + summaries (chat), OpenAI-compatible
+  // and ~10x cheaper. OpenAI fully removed from this app.
+  get GROQ_API_KEY() { return required("GROQ_API_KEY"); },
   // Accept either SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL. Both point at the
   // same Supabase project; the public-prefixed one is always defined in a
   // Next.js project because the browser client needs it, so falling back here

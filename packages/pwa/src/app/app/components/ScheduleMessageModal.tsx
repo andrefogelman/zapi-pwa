@@ -220,7 +220,6 @@ export function ScheduleMessageModal({ open, onClose, sessionId, chatJid, chatNa
                 onPickPhoto={() => photoInputRef.current?.click()}
                 onPickDocument={() => documentInputRef.current?.click()}
                 onPickContact={() => {}}
-                onPickAIImage={() => {}}
                 hideExtras
               />
             </div>

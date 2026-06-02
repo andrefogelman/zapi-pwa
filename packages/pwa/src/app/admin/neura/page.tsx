@@ -9,7 +9,7 @@ interface PlatformConfig {
   neura_top_p: number;
 }
 
-const MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "whisper-1"];
+const MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "openai/gpt-oss-120b"];
 
 export default function AdminNeuraPage() {
   const [config, setConfig] = useState<PlatformConfig | null>(null);

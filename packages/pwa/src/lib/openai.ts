@@ -1,10 +1,12 @@
 import OpenAI from "openai";
 import { env } from "./env";
 
-let _openai: OpenAI | null = null;
-function getOpenAI() {
-  if (!_openai) _openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
-  return _openai;
+// Groq — OpenAI-compatible client for Whisper transcription + chat summaries
+// (~10x cheaper than OpenAI). Reuses the OpenAI SDK class, re-pointed at Groq.
+let _groq: OpenAI | null = null;
+function getGroq() {
+  if (!_groq) _groq = new OpenAI({ apiKey: env.GROQ_API_KEY, baseURL: "https://api.groq.com/openai/v1" });
+  return _groq;
 }
 
 export interface TranscribeConfig {
@@ -36,9 +38,11 @@ export async function transcribeAudio(
 ): Promise<string> {
   const file = new File([audio], "audio.ogg", { type: "audio/ogg" });
 
-  const model = config.model ?? "whisper-1";
+  // Groq model. config.model (per-instance override) must be a Groq-supported
+  // whisper model; default is the cheap/fast turbo variant.
+  const model = config.model ?? "whisper-large-v3-turbo";
 
-  const response = await getOpenAI().audio.transcriptions.create({
+  const response = await getGroq().audio.transcriptions.create({
     file,
     model,
     prompt: config.prompt,
@@ -53,18 +57,6 @@ export async function transcribeAudio(
   return response.text;
 }
 
-export async function generateImage(prompt: string): Promise<{ base64: string; mimeType: string }> {
-  const response = await getOpenAI().images.generate({
-    model: "gpt-image-1",
-    prompt,
-    size: "1024x1024",
-    n: 1,
-  });
-  const b64 = response.data?.[0]?.b64_json;
-  if (!b64) throw new Error("No image returned from OpenAI");
-  return { base64: b64, mimeType: "image/png" };
-}
-
 export interface SummarizeConfig {
   model?: string;
   prompt?: string;
@@ -75,8 +67,8 @@ export async function summarizeText(
   text: string,
   config: SummarizeConfig = {},
 ): Promise<string> {
-  const response = await getOpenAI().chat.completions.create({
-    model: config.model ?? "gpt-4.1-mini",
+  const response = await getGroq().chat.completions.create({
+    model: config.model ?? "llama-3.3-70b-versatile",
     temperature: config.temperature ?? 0.3,
     messages: [
       {
