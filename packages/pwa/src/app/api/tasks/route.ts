@@ -188,7 +188,7 @@ export async function POST(request: Request) {
             "X-API-Key": env.WACLAW_API_KEY,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ chatJid: body.jid, text: invitation }),
+          body: JSON.stringify({ to: body.jid, message: invitation }),
         });
       } else {
         // Record a join_failure on the owner participant row so the UI can

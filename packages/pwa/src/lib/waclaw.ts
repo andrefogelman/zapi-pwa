@@ -130,7 +130,7 @@ export async function sendMessage(params: {
       body: JSON.stringify({
         to: params.chatJid,
         message: params.text,
-        quoted_id: params.replyToMessageId,
+        quotedMsgId: params.replyToMessageId,
       }),
     }
   );

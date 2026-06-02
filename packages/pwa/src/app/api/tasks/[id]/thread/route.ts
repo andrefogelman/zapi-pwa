@@ -160,7 +160,7 @@ export async function POST(
   const sendRes = await fetch(`${env.WACLAW_URL}/sessions/${sessionId}/send`, {
     method: "POST",
     headers: { "X-API-Key": env.WACLAW_API_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ chatJid: task.wa_group_jid, text: body }),
+    body: JSON.stringify({ to: task.wa_group_jid, message: body }),
   });
   if (!sendRes.ok) {
     return Response.json({ error: "send failed" }, { status: 502 });
