@@ -50,12 +50,18 @@ type Scheduler struct {
 	mgr        *session.Manager
 	baseURL    string
 	serviceKey string
+	groqKey    string
 	log        zerolog.Logger
+
+	// Daily-job dedup: BRT date (YYYY-MM-DD) of the last run, so the report
+	// (19h) and cleanup (3h) fire at most once per day even with a 30s poll.
+	lastReportYMD  string
+	lastCleanupYMD string
 }
 
 // New returns a *Scheduler configured to poll Supabase. Returns nil (scheduler
 // disabled) if either supabaseURL or serviceKey is empty.
-func New(mgr *session.Manager, supabaseURL, serviceKey string, log zerolog.Logger) *Scheduler {
+func New(mgr *session.Manager, supabaseURL, serviceKey, groqKey string, log zerolog.Logger) *Scheduler {
 	if supabaseURL == "" || serviceKey == "" {
 		log.Warn().Msg("scheduler disabled: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set")
 		return nil
@@ -64,6 +70,7 @@ func New(mgr *session.Manager, supabaseURL, serviceKey string, log zerolog.Logge
 		mgr:        mgr,
 		baseURL:    supabaseURL,
 		serviceKey: serviceKey,
+		groqKey:    groqKey,
 		log:        log.With().Str("component", "scheduler").Logger(),
 	}
 }
@@ -79,6 +86,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 	case <-time.After(initialDelay):
 	}
 	s.tick(ctx)
+	s.dailyJobs(ctx)
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
@@ -89,6 +97,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.tick(ctx)
+			s.dailyJobs(ctx)
 		}
 	}
 }

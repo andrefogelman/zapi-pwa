@@ -105,7 +105,7 @@ func run(ctx context.Context, cfg config.Config) error {
 		},
 	)
 
-	if sched := scheduler.New(mgr, cfg.SupabaseURL, cfg.SupabaseServiceKey, log.Logger); sched != nil {
+	if sched := scheduler.New(mgr, cfg.SupabaseURL, cfg.SupabaseServiceKey, cfg.GroqAPIKey, log.Logger); sched != nil {
 		go sched.Run(ctx)
 	}
 

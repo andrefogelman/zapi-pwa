@@ -27,6 +27,9 @@ type Config struct {
 	SupabaseURL        string
 	SupabaseServiceKey string
 
+	// Groq API key for the daily-report summary (chat completions).
+	GroqAPIKey string
+
 	// Media
 	MediaDownloadWorkers int
 	MaxAudioBytes        int64
@@ -53,6 +56,7 @@ func FromEnv() (Config, error) {
 		LogFormat:          getEnvDefault("LOG_FORMAT", defaultLogFormat),
 		SupabaseURL:        os.Getenv("SUPABASE_URL"),
 		SupabaseServiceKey: os.Getenv("SUPABASE_SERVICE_ROLE_KEY"),
+		GroqAPIKey:         os.Getenv("GROQ_API_KEY"),
 	}
 
 	if cfg.APIKey == "" {
