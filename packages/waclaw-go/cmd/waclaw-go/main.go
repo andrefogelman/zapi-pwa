@@ -13,6 +13,7 @@ import (
 	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/config"
 	waevents "github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/events"
 	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/httpserver"
+	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/monitor"
 	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/scheduler"
 	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/session"
 	"github.com/rs/zerolog"
@@ -106,6 +107,10 @@ func run(ctx context.Context, cfg config.Config) error {
 
 	if sched := scheduler.New(mgr, cfg.SupabaseURL, cfg.SupabaseServiceKey, log.Logger); sched != nil {
 		go sched.Run(ctx)
+	}
+
+	if mon := monitor.New(bus, cfg.SupabaseURL, cfg.SupabaseServiceKey, log.Logger); mon != nil {
+		go mon.Run(ctx)
 	}
 
 	return srv.Run(ctx)
