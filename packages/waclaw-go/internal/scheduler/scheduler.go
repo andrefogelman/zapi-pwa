@@ -35,6 +35,14 @@ type scheduledMessage struct {
 	MediaBase64   string `json:"media_base64"`
 	MediaFilename string `json:"media_filename"`
 	MediaMimeType string `json:"media_mime_type"`
+	// Recurrence (optional). When RecurrencePattern is set, the next occurrence
+	// is queued after a successful send. Fields carried over for the re-insert.
+	UserID             string `json:"user_id"`
+	ChatName           string `json:"chat_name"`
+	RecurrencePattern  string `json:"recurrence_pattern"`
+	RecurrenceInterval int    `json:"recurrence_interval"`
+	RecurrenceDays     []int  `json:"recurrence_days"`
+	RecurrenceEndDate  string `json:"recurrence_end_date"`
 }
 
 // Scheduler polls Supabase REST API for pending messages and dispatches them.
@@ -180,6 +188,9 @@ func (s *Scheduler) process(ctx context.Context, msg scheduledMessage) {
 	sentAt := time.Now().UTC().Format(time.RFC3339)
 	s.patchStatus(ctx, msg.ID, map[string]any{"status": "sent", "sent_at": sentAt})
 	log.Info().Msg("scheduled message sent")
+
+	// If recurring, queue the next occurrence.
+	s.reschedule(ctx, msg)
 }
 
 // patchStatus sends a PATCH to Supabase with an optimistic pending guard.
@@ -242,4 +253,61 @@ func (s *Scheduler) updateFailed(ctx context.Context, id, errMsg string) {
 func (s *Scheduler) setHeaders(req *http.Request) {
 	req.Header.Set("apikey", s.serviceKey)
 	req.Header.Set("Authorization", "Bearer "+s.serviceKey)
+}
+
+// reschedule inserts the next occurrence of a recurring message, if any.
+func (s *Scheduler) reschedule(ctx context.Context, msg scheduledMessage) {
+	next, ok := nextOccurrence(msg)
+	if !ok {
+		return
+	}
+	row := map[string]any{
+		"user_id":             msg.UserID,
+		"waclaw_session_id":   msg.WaclawSessionID,
+		"chat_jid":            msg.ChatJID,
+		"chat_name":           msg.ChatName,
+		"text":                msg.Text,
+		"scheduled_for":       next.UTC().Format(time.RFC3339),
+		"status":              "pending",
+		"recurrence_pattern":  msg.RecurrencePattern,
+		"recurrence_interval": msg.RecurrenceInterval,
+		"recurrence_days":     msg.RecurrenceDays,
+	}
+	if msg.MediaBase64 != "" {
+		row["media_base64"] = msg.MediaBase64
+		row["media_filename"] = msg.MediaFilename
+		row["media_mime_type"] = msg.MediaMimeType
+	}
+	if msg.RecurrenceEndDate != "" {
+		row["recurrence_end_date"] = msg.RecurrenceEndDate
+	}
+	if !s.insertRow(ctx, row) {
+		return
+	}
+	s.log.Info().Str("chat", msg.ChatJID).Str("next", row["scheduled_for"].(string)).Msg("recurring message rescheduled")
+}
+
+// insertRow POSTs a new pending scheduled message to Supabase. Returns true on success.
+func (s *Scheduler) insertRow(ctx context.Context, row map[string]any) bool {
+	url := fmt.Sprintf("%s/rest/v1/%s", s.baseURL, pollTable)
+	data, _ := json.Marshal(row)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		s.log.Error().Err(err).Msg("build insert request")
+		return false
+	}
+	s.setHeaders(req)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Prefer", "return=minimal")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		s.log.Error().Err(err).Msg("insert request")
+		return false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		s.log.Error().Int("status", resp.StatusCode).Msg("insert next occurrence failed")
+		return false
+	}
+	return true
 }
