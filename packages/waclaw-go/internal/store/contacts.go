@@ -224,6 +224,47 @@ func (s *Store) LookupPhoneForLID(lidJID string) (string, error) {
 	return phoneJID, nil
 }
 
+// SyncLIDMappings atomically wires the LID→phone JID links from whatsmeow's
+// lid_map table into our contacts table. For each (lid, phoneNumber) pair it:
+//  1. Clears lid from any existing contact that holds it (except the phone contact)
+//     so the unique index on lid doesn't block the update.
+//  2. Upserts the phone-JID contact row, setting its lid field.
+//
+// Returns the number of mappings successfully applied.
+func (s *Store) SyncLIDMappings(mappings [][2]string) (int, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	synced := 0
+	for _, pair := range mappings {
+		lid, pn := pair[0], pair[1]
+		if lid == "" || pn == "" {
+			continue
+		}
+		lidJID := lid + "@lid"
+		phoneJID := pn + "@s.whatsapp.net"
+		// Clear lid from any other contact that already holds this lid
+		// (e.g. the @lid-JID contact row created from a push_name event).
+		if _, err := tx.Exec(`UPDATE contacts SET lid = NULL WHERE lid = ? AND jid != ?`, lidJID, phoneJID); err != nil {
+			continue
+		}
+		// Upsert phone contact row with lid. COALESCE so we don't clobber
+		// names already present (full_name, push_name, etc.).
+		if _, err := tx.Exec(`
+			INSERT INTO contacts (jid, lid, updated_at) VALUES (?, ?, strftime('%s','now'))
+			ON CONFLICT(jid) DO UPDATE SET
+				lid       = excluded.lid,
+				updated_at = excluded.updated_at
+		`, phoneJID, lidJID); err != nil {
+			continue
+		}
+		synced++
+	}
+	return synced, tx.Commit()
+}
+
 // MergeLIDChatsResult summarizes the result of MergeLIDChatsIntoPhone.
 type MergeLIDChatsResult struct {
 	ChatsProcessed int

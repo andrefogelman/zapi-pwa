@@ -168,31 +168,30 @@ func (s *Session) backfillContactNamesFromWAStore() {
 	}
 	s.log.Info().Int("copied", copied).Msg("contact name backfill done")
 
-	// Sync the LID→phone mapping from whatsmeow_lid_map so the identityKey
-	// query in GetChats can collapse LID-addressed incoming chats with the
-	// phone-JID chat that holds the outbound messages. Without this, contacts
-	// who reply via LID routing show up as duplicate sidebar entries.
+	// Sync the LID→phone mapping from whatsmeow_lid_map so that:
+	//  1. GetChats identityKey query can collapse LID-addressed incoming chats
+	//     with the phone-JID chat that holds the outbound messages.
+	//  2. MergeLIDChatsIntoPhone can find the phone JID for each @lid chat.
 	lidRows, lerr := src.Query(`SELECT lid, pn FROM whatsmeow_lid_map`)
 	if lerr != nil {
 		s.log.Warn().Err(lerr).Msg("lid_map backfill: query failed")
 		return
 	}
 	defer lidRows.Close()
-	synced := 0
+	var mappings [][2]string
 	for lidRows.Next() {
 		var lid, pn string
 		if lidRows.Scan(&lid, &pn) != nil || lid == "" || pn == "" {
 			continue
 		}
-		if err := s.store.UpsertContact(store.Contact{
-			JID: pn + "@s.whatsapp.net",
-			LID: lid + "@lid",
-		}); err != nil {
-			continue
-		}
-		synced++
+		mappings = append(mappings, [2]string{lid, pn})
 	}
-	s.log.Info().Int("synced", synced).Msg("lid_map backfill done")
+	synced, serr := s.store.SyncLIDMappings(mappings)
+	if serr != nil {
+		s.log.Warn().Err(serr).Msg("lid_map backfill: sync failed")
+	} else {
+		s.log.Info().Int("synced", synced).Msg("lid_map backfill done")
+	}
 
 	// Retroactively merge existing LID-addressed DM chats into their phone-JID
 	// counterparts. This fixes historical incoming replies that were stored under
