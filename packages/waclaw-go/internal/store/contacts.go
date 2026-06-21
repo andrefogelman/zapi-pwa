@@ -1,6 +1,9 @@
 package store
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Contact is a contacts table row.
 // LID is the WhatsApp Local Identifier (e.g. "123456789@lid") — populated when
@@ -187,6 +190,115 @@ func (s *Store) SearchContacts(term string, limit int) ([]Contact, error) {
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// LookupPhoneForLID returns the normalized phone JID (e.g. "5511...@s.whatsapp.net")
+// for a LID JID (e.g. "52445912813614@lid" or "52445912813614:1@lid").
+// Returns ("", nil) when no mapping is found.
+func (s *Store) LookupPhoneForLID(lidJID string) (string, error) {
+	// Strip device suffix if present: "12345:1@lid" → "12345@lid"
+	localFull := lidJID
+	if at := strings.Index(lidJID, "@"); at > 0 {
+		local := lidJID[:at]
+		if colon := strings.Index(local, ":"); colon > 0 {
+			local = local[:colon]
+		}
+		localFull = local + "@lid"
+	}
+	var phoneJID string
+	err := s.db.QueryRow(`
+		SELECT jid FROM contacts
+		WHERE jid LIKE '%@s.whatsapp.net'
+		  AND (lid = ? OR lid LIKE ?)
+		LIMIT 1
+	`, localFull, strings.TrimSuffix(localFull, "@lid")+":_%@lid").Scan(&phoneJID)
+	if err != nil {
+		return "", nil // not found is not an error
+	}
+	// Normalize: strip device suffix from stored jid
+	if colon := strings.Index(phoneJID, ":"); colon > 0 {
+		if at := strings.Index(phoneJID, "@"); at > colon {
+			phoneJID = phoneJID[:colon] + phoneJID[at:]
+		}
+	}
+	return phoneJID, nil
+}
+
+// MergeLIDChatsResult summarizes the result of MergeLIDChatsIntoPhone.
+type MergeLIDChatsResult struct {
+	ChatsProcessed int
+	MessagesMoved  int
+}
+
+// MergeLIDChatsIntoPhone migrates messages from LID-addressed DM chats into their
+// corresponding phone-JID chats. Called once after backfilling the contacts table
+// with the LID→phone mapping so that historical incoming replies appear in the
+// right thread.
+//
+// For each @lid chat where a phone JID is known via the contacts table:
+//  1. Reparent all messages (UPDATE messages SET chat_jid = phone WHERE chat_jid = lid)
+//  2. Reparent all reactions similarly
+//  3. Merge the LID chat's last_message_ts into the phone chat
+//  4. Delete the now-empty LID chat row
+//
+// Skips chats where the phone chat does not exist (to avoid orphan messages).
+func (s *Store) MergeLIDChatsIntoPhone() (MergeLIDChatsResult, error) {
+	// Collect all @lid DM chats that have a phone-JID mapping.
+	rows, err := s.db.Query(`
+		SELECT c.jid,
+		       (SELECT ct.jid FROM contacts ct
+		        WHERE ct.jid LIKE '%@s.whatsapp.net'
+		          AND (ct.lid = c.jid OR ct.lid LIKE substr(c.jid, 1, instr(c.jid,'@')-1) || ':%@lid')
+		        LIMIT 1) AS phone_jid
+		FROM chats c
+		WHERE c.jid LIKE '%@lid'
+		  AND c.kind = 'dm'
+	`)
+	if err != nil {
+		return MergeLIDChatsResult{}, err
+	}
+	type pair struct{ lid, phone string }
+	var pairs []pair
+	for rows.Next() {
+		var lid string
+		var phone *string
+		if rows.Scan(&lid, &phone) == nil && phone != nil && *phone != "" {
+			pairs = append(pairs, pair{lid, *phone})
+		}
+	}
+	rows.Close()
+
+	var res MergeLIDChatsResult
+	for _, p := range pairs {
+		// Ensure the phone chat row exists; if not, rename the LID chat.
+		var existsPhone int
+		_ = s.db.QueryRow(`SELECT COUNT(*) FROM chats WHERE jid = ?`, p.phone).Scan(&existsPhone)
+		if existsPhone == 0 {
+			// Rename the LID chat to the phone JID.
+			_, _ = s.db.Exec(`UPDATE chats SET jid = ?, kind = 'dm' WHERE jid = ?`, p.phone, p.lid)
+			_, _ = s.db.Exec(`UPDATE messages SET chat_jid = ? WHERE chat_jid = ?`, p.phone, p.lid)
+			_, _ = s.db.Exec(`UPDATE reactions SET chat_jid = ? WHERE chat_jid = ?`, p.phone, p.lid)
+			res.ChatsProcessed++
+			continue
+		}
+		// Move messages.
+		res2, err2 := s.db.Exec(`UPDATE messages SET chat_jid = ? WHERE chat_jid = ?`, p.phone, p.lid)
+		if err2 == nil {
+			n, _ := res2.RowsAffected()
+			res.MessagesMoved += int(n)
+		}
+		// Move reactions.
+		_, _ = s.db.Exec(`UPDATE reactions SET chat_jid = ? WHERE chat_jid = ?`, p.phone, p.lid)
+		// Merge last_message_ts into the phone chat.
+		_, _ = s.db.Exec(`
+			UPDATE chats SET last_message_ts = MAX(last_message_ts, (SELECT last_message_ts FROM chats WHERE jid = ?))
+			WHERE jid = ?
+		`, p.lid, p.phone)
+		// Delete the now-empty LID chat.
+		_, _ = s.db.Exec(`DELETE FROM chats WHERE jid = ?`, p.lid)
+		res.ChatsProcessed++
+	}
+	return res, nil
 }
 
 // UpsertGroup upserts a group row.

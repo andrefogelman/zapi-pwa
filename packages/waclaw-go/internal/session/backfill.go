@@ -167,6 +167,44 @@ func (s *Session) backfillContactNamesFromWAStore() {
 		copied++
 	}
 	s.log.Info().Int("copied", copied).Msg("contact name backfill done")
+
+	// Sync the LID→phone mapping from whatsmeow_lid_map so the identityKey
+	// query in GetChats can collapse LID-addressed incoming chats with the
+	// phone-JID chat that holds the outbound messages. Without this, contacts
+	// who reply via LID routing show up as duplicate sidebar entries.
+	lidRows, lerr := src.Query(`SELECT lid, pn FROM whatsmeow_lid_map`)
+	if lerr != nil {
+		s.log.Warn().Err(lerr).Msg("lid_map backfill: query failed")
+		return
+	}
+	defer lidRows.Close()
+	synced := 0
+	for lidRows.Next() {
+		var lid, pn string
+		if lidRows.Scan(&lid, &pn) != nil || lid == "" || pn == "" {
+			continue
+		}
+		if err := s.store.UpsertContact(store.Contact{
+			JID: pn + "@s.whatsapp.net",
+			LID: lid + "@lid",
+		}); err != nil {
+			continue
+		}
+		synced++
+	}
+	s.log.Info().Int("synced", synced).Msg("lid_map backfill done")
+
+	// Retroactively merge existing LID-addressed DM chats into their phone-JID
+	// counterparts. This fixes historical incoming replies that were stored under
+	// a @lid chat JID before this mapping was available.
+	if mergeRes, merr := s.store.MergeLIDChatsIntoPhone(); merr != nil {
+		s.log.Warn().Err(merr).Msg("lid chat merge: failed")
+	} else if mergeRes.ChatsProcessed > 0 {
+		s.log.Info().
+			Int("chats", mergeRes.ChatsProcessed).
+			Int("messages", mergeRes.MessagesMoved).
+			Msg("lid chat merge done")
+	}
 }
 
 // rehydratePendingDownloads re-enqueues media download jobs for messages

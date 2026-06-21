@@ -1,6 +1,8 @@
 package session
 
 import (
+	"strings"
+
 	waevents "github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/events"
 	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/store"
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
@@ -46,12 +48,25 @@ func (s *Session) handleMessage(evt *waevt.Message) {
 		return
 	}
 	m := parseLiveMessage(evt)
+
+	// For DMs where WhatsApp routed via LID, normalize to the phone JID so
+	// incoming replies land in the same chat as outbound messages.
+	// Only applies to DMs (groups use @g.us and are never @lid).
+	if strings.HasSuffix(m.ChatJID, "@lid") {
+		if phoneJID, _ := s.store.LookupPhoneForLID(m.ChatJID); phoneJID != "" {
+			m.ChatLID = m.ChatJID // preserve the original LID in ChatLID
+			m.ChatJID = phoneJID
+		}
+	}
+
 	if err := s.store.InsertMessage(m); err != nil {
 		s.log.Error().Err(err).Str("msg_id", m.MsgID).Msg("insert message failed")
 		return
 	}
-	// Upsert contact from message sender (keeps push names fresh).
-	if m.SenderJID != "" && m.SenderName != "" {
+	// Upsert contact from message sender (keeps push names fresh and
+	// establishes the phone↔LID link even when SenderName is empty,
+	// so the identityKey dedup in GetChats can collapse duplicate entries).
+	if m.SenderJID != "" {
 		_ = s.store.UpsertContact(store.Contact{
 			JID:      m.SenderJID,
 			LID:      m.SenderLID,
