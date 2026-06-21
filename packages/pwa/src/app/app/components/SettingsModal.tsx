@@ -33,6 +33,15 @@ interface FetchedGroup {
   subject: string;
 }
 
+interface UnifiedGroup {
+  group_id: string;
+  subject: string;
+  authorized: boolean;
+  transcribe_all: boolean;
+  send_reply: boolean;
+  monitor_daily: boolean;
+}
+
 export function SettingsModal({
   open, onClose, instances, activeInstanceId, onCreate, onDelete, onRename, onReorder, onReload,
 }: Props) {
@@ -141,14 +150,37 @@ export function SettingsModal({
     }
   }
 
-  async function importGroup(g: FetchedGroup) {
+  const authorizedIds = new Set(groups.map((g) => g.group_id));
+  const unifiedGroups: UnifiedGroup[] = [
+    ...groups.map((g) => ({ ...g, authorized: true })),
+    ...fetchedGroups
+      .filter((g) => !authorizedIds.has(g.group_id))
+      .map((g) => ({
+        group_id: g.group_id,
+        subject: g.subject,
+        authorized: false,
+        transcribe_all: false,
+        send_reply: false,
+        monitor_daily: false,
+      })),
+  ].sort((a, b) => a.subject.localeCompare(b.subject, "pt-BR"));
+
+  async function toggleAuthorize(g: UnifiedGroup) {
     if (!activeInstanceId || !session?.access_token) return;
-    await fetch(`/api/instances/${activeInstanceId}/groups`, {
-      method: "POST",
-      headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ group_id: g.group_id, subject: g.subject }),
-    });
-    loadGroups();
+    if (g.authorized) {
+      await fetch(
+        `/api/instances/${activeInstanceId}/groups/${encodeURIComponent(g.group_id)}`,
+        { method: "DELETE", headers: authHeaders() },
+      );
+      setGroups((prev) => prev.filter((x) => x.group_id !== g.group_id));
+    } else {
+      await fetch(`/api/instances/${activeInstanceId}/groups`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ group_id: g.group_id, subject: g.subject }),
+      });
+      loadGroups();
+    }
   }
 
   async function toggleGroupFlag(
@@ -175,12 +207,9 @@ export function SettingsModal({
     if (!confirm("Remover este grupo?")) return;
     await fetch(
       `/api/instances/${activeInstanceId}/groups/${encodeURIComponent(groupId)}`,
-      {
-        method: "DELETE",
-        headers: authHeaders(),
-      },
+      { method: "DELETE", headers: authHeaders() },
     );
-    loadGroups();
+    setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
   }
 
   // Poll QR + status while showing the QR view
@@ -591,70 +620,7 @@ export function SettingsModal({
                 <p>Selecione uma instância primeiro.</p>
               ) : (
                 <>
-                  <div
-                    style={{
-                      padding: "0.75rem 1rem",
-                      background: "rgba(0, 168, 132, 0.12)",
-                      border: "1px solid rgba(0, 168, 132, 0.3)",
-                      borderRadius: 6,
-                      marginBottom: "1rem",
-                      fontSize: "0.875rem",
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    Por padrão apenas seus próprios áudios são transcritos.
-                    Autorize os grupos onde você quer <strong>transcrever
-                    também os áudios enviados por terceiros</strong>.
-                  </div>
-
-                  {(groups.length > 0 || fetchedGroups.length > 0) && (
-                    <button
-                      onClick={fetchFromWhatsApp}
-                      disabled={fetchingGroups}
-                      className="wa-modal-primary"
-                      style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
-                    >
-                      {fetchingGroups
-                        ? "Buscando..."
-                        : "Buscar mais grupos do WhatsApp"}
-                    </button>
-                  )}
-
-                  {fetchedGroups.length > 0 && (
-                    <div
-                      style={{
-                        border: "1px solid #ddd",
-                        padding: "0.5rem",
-                        marginBottom: "1rem",
-                        borderRadius: 4,
-                      }}
-                    >
-                      <h4 style={{ margin: "0 0 0.5rem 0" }}>
-                        Selecione os grupos para autorizar
-                      </h4>
-                      {fetchedGroups.map((g) => (
-                        <div
-                          key={g.group_id}
-                          style={{
-                            padding: "0.25rem",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span>{g.subject}</span>
-                          <button
-                            onClick={() => importGroup(g)}
-                            style={{ fontSize: "0.8rem" }}
-                          >
-                            Autorizar
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {groups.length === 0 && fetchedGroups.length === 0 ? (
+                  {unifiedGroups.length === 0 ? (
                     <div
                       style={{
                         padding: "2rem 1rem",
@@ -664,7 +630,7 @@ export function SettingsModal({
                       }}
                     >
                       <p style={{ margin: "0 0 0.5rem 0", fontWeight: 600 }}>
-                        Nenhum grupo autorizado ainda.
+                        Nenhum grupo carregado ainda.
                       </p>
                       <p
                         style={{
@@ -673,8 +639,8 @@ export function SettingsModal({
                           fontSize: "0.875rem",
                         }}
                       >
-                        Busque os grupos do seu WhatsApp e escolha em quais
-                        você quer ligar a transcrição de áudios de terceiros.
+                        Busque os grupos do seu WhatsApp para configurar
+                        transcrição e respostas automáticas.
                       </p>
                       <button
                         onClick={fetchFromWhatsApp}
@@ -687,9 +653,17 @@ export function SettingsModal({
                           : "Buscar meus grupos do WhatsApp"}
                       </button>
                     </div>
-                  ) : groups.length > 0 ? (
+                  ) : (
                     <>
-                      <h3 style={{ marginTop: 0 }}>Grupos autorizados</h3>
+                      <button
+                        onClick={fetchFromWhatsApp}
+                        disabled={fetchingGroups}
+                        className="wa-modal-primary"
+                        style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
+                      >
+                        {fetchingGroups ? "Buscando..." : "Atualizar grupos"}
+                      </button>
+
                       <table
                         style={{
                           width: "100%",
@@ -699,58 +673,62 @@ export function SettingsModal({
                       >
                         <thead>
                           <tr style={{ borderBottom: "2px solid #333" }}>
-                            <th
-                              style={{ textAlign: "left", padding: "0.5rem" }}
-                            >
+                            <th style={{ textAlign: "left", padding: "0.5rem" }}>
                               Grupo
                             </th>
                             <th
                               style={{
                                 textAlign: "center",
                                 padding: "0.5rem",
-                                fontWeight: 700,
+                                whiteSpace: "nowrap",
                               }}
                             >
-                              Transcrever terceiros
+                              Autorizar
                             </th>
                             <th
                               style={{
                                 textAlign: "center",
                                 padding: "0.5rem",
-                                fontWeight: 400,
-                                color: "#888",
+                                whiteSpace: "nowrap",
                               }}
                             >
-                              Responder no chat
+                              Responder
+                            </th>
+                            <th
+                              style={{
+                                textAlign: "center",
+                                padding: "0.5rem",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Transcrever tudo
                             </th>
                             <th></th>
                           </tr>
                         </thead>
                         <tbody>
-                          {groups.map((g) => (
+                          {unifiedGroups.map((g) => (
                             <tr
                               key={g.group_id}
-                              style={{ borderBottom: "1px solid #eee" }}
+                              style={{
+                                borderBottom: "1px solid #eee",
+                                opacity: g.authorized ? 1 : 0.55,
+                              }}
                             >
                               <td style={{ padding: "0.5rem" }}>{g.subject}</td>
                               <td style={{ textAlign: "center" }}>
                                 <input
                                   type="checkbox"
-                                  checked={g.transcribe_all}
+                                  checked={g.authorized}
                                   style={{ transform: "scale(1.3)" }}
-                                  onChange={(e) =>
-                                    toggleGroupFlag(
-                                      g.group_id,
-                                      "transcribe_all",
-                                      e.target.checked,
-                                    )
-                                  }
+                                  onChange={() => toggleAuthorize(g)}
                                 />
                               </td>
-                              <td style={{ textAlign: "center", opacity: 0.75 }}>
+                              <td style={{ textAlign: "center" }}>
                                 <input
                                   type="checkbox"
                                   checked={g.send_reply}
+                                  disabled={!g.authorized}
                                   onChange={(e) =>
                                     toggleGroupFlag(
                                       g.group_id,
@@ -760,25 +738,42 @@ export function SettingsModal({
                                   }
                                 />
                               </td>
+                              <td style={{ textAlign: "center" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={g.transcribe_all}
+                                  disabled={!g.authorized}
+                                  onChange={(e) =>
+                                    toggleGroupFlag(
+                                      g.group_id,
+                                      "transcribe_all",
+                                      e.target.checked,
+                                    )
+                                  }
+                                />
+                              </td>
                               <td>
-                                <button
-                                  onClick={() => removeGroup(g.group_id)}
-                                  style={{
-                                    color: "red",
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  Remover
-                                </button>
+                                {g.authorized && (
+                                  <button
+                                    onClick={() => removeGroup(g.group_id)}
+                                    style={{
+                                      color: "red",
+                                      background: "none",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      fontSize: "0.8rem",
+                                    }}
+                                  >
+                                    Remover
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </>
-                  ) : null}
+                  )}
                 </>
               )}
             </div>
