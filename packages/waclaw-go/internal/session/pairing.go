@@ -187,7 +187,7 @@ func (s *Session) buildEventHandler() func(evt interface{}) {
 			// Resolve group subjects for groups whose name wasn't captured
 			// by history sync (legacy `<phone>-<timestamp>` chat IDs show up
 			// as raw JIDs in the UI without this).
-			go s.backfillGroupNames(50)
+			go s.backfillGroupNames(500)
 			// Re-enqueue media downloads that were dropped on previous runs
 			// when the in-memory queue overflowed during history-sync bursts.
 			go s.rehydratePendingDownloads(2000)

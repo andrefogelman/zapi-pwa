@@ -149,6 +149,9 @@ func (s *Store) GetChats() ([]Chat, error) {
 				   CASE WHEN ct.jid LIKE '%@s.whatsapp.net' THEN 0 ELSE 1 END
 				 LIMIT 1),
 				NULLIF(c.name, ''),
+				(SELECT NULLIF(m.chat_name, '') FROM messages m
+				 WHERE m.chat_jid = c.jid AND NULLIF(m.chat_name, '') IS NOT NULL
+				 ORDER BY m.ts DESC, m.rowid DESC LIMIT 1),
 				c.jid
 			) AS name,
 			c.kind,
