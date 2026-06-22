@@ -161,8 +161,16 @@ func (s *Store) GetChats() ([]Chat, error) {
 			COALESCE(c.muted_until, 0) AS muted_until,
 			COALESCE((SELECT ct.blocked FROM contacts ct WHERE ct.jid = c.jid OR ct.jid = c.lid LIMIT 1), 0) AS blocked,
 			(SELECT COUNT(*) FROM messages m WHERE m.chat_jid = c.jid) AS msg_count,
-			(SELECT text FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC, rowid DESC LIMIT 1) AS last_message,
-			(SELECT sender_name FROM messages m WHERE m.chat_jid = c.jid ORDER BY ts DESC, rowid DESC LIMIT 1) AS last_sender,
+			(SELECT text FROM messages m WHERE m.chat_jid = c.jid AND (
+				(text IS NOT NULL AND text != '')
+				OR (display_text IS NOT NULL AND display_text != '')
+				OR (media_type IS NOT NULL AND media_type != '')
+			) ORDER BY ts DESC, rowid DESC LIMIT 1) AS last_message,
+			(SELECT sender_name FROM messages m WHERE m.chat_jid = c.jid AND (
+				(text IS NOT NULL AND text != '')
+				OR (display_text IS NOT NULL AND display_text != '')
+				OR (media_type IS NOT NULL AND media_type != '')
+			) ORDER BY ts DESC, rowid DESC LIMIT 1) AS last_sender,
 			-- Identity key: the "phone JID root" when this chat corresponds to a
 			-- contact whose contacts table row pairs it with a phone JID (even
 			-- when the row has a :NN device-suffix). Lets the PWA collapse the
