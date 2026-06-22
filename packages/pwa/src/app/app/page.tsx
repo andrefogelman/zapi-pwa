@@ -426,9 +426,13 @@ export default function AppMain() {
       <TaskDetailModal
         task={selectedTask ? taskDetail : null}
         loading={taskDetailLoading}
+        currentUserId={session?.user.id}
         onClose={() => setSelectedTask(null)}
         onUpdateStatus={(status) => {
           if (selectedTask) updateTask(selectedTask.id, { status: status as Task["status"] });
+        }}
+        onUpdate={async (updates) => {
+          if (selectedTask) await updateTask(selectedTask.id, updates);
         }}
         onRemoveParticipant={removeParticipant}
         onSendDirectMessage={sendDirectMessage}

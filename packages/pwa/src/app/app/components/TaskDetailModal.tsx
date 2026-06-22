@@ -9,8 +9,10 @@ import { useTaskThread } from "../hooks/useTaskThread";
 interface Props {
   task: Task | null;
   loading: boolean;
+  currentUserId?: string | null;
   onClose: () => void;
   onUpdateStatus: (status: string) => void;
+  onUpdate: (updates: Partial<Pick<Task, "title" | "description" | "priority" | "due_date">>) => Promise<void>;
   onRemoveParticipant: (id: string) => void;
   onSendDirectMessage: (contactJid: string, body: string) => Promise<boolean>;
   onDelete: () => void;
@@ -24,15 +26,30 @@ const STATUS_LABEL: Record<string, string> = {
   closed: "Fechada",
 };
 
+const PRIORITY_LABEL: Record<string, string> = {
+  low: "Baixa",
+  medium: "Média",
+  high: "Alta",
+  urgent: "Urgente",
+};
+
 export function TaskDetailModal({
-  task, loading, onClose,
-  onUpdateStatus, onRemoveParticipant, onSendDirectMessage, onDelete,
+  task, loading, currentUserId, onClose,
+  onUpdateStatus, onUpdate, onRemoveParticipant, onSendDirectMessage, onDelete,
 }: Props) {
   const [composer, setComposer] = useState("");
   const [visibility, setVisibility] = useState<"all" | "internal">("all");
   const [sending, setSending] = useState(false);
   const [dmTarget, setDmTarget] = useState<TaskParticipant | null>(null);
   const [dmBody, setDmBody] = useState("");
+
+  // Edit state
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editPriority, setEditPriority] = useState("medium");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const participants = useMemo(() => (task?.task_participants ?? []) as TaskParticipant[], [task]);
   const externos = useMemo(() => participants.filter((p) => !!p.contact_jid), [participants]);
@@ -42,11 +59,6 @@ export function TaskDetailModal({
     task?.status,
   );
 
-  // Set of JIDs that have posted in the thread — drives the "não respondeu"
-  // badge. If a participant's JID never appears as from_jid, they haven't
-  // engaged yet. from_jid isn't in the ThreadItem type so we infer from
-  // senderName ≠ "Você" AND fromMe=false against… simpler: anyone with at
-  // least one thread item mapped by sender name.
   const respondedNames = useMemo(() => {
     const s = new Set<string>();
     for (const it of items) {
@@ -56,6 +68,33 @@ export function TaskDetailModal({
   }, [items]);
 
   if (!task) return null;
+
+  function participantLabel(p: TaskParticipant): string {
+    if (p.contact_name) return p.contact_name;
+    if (p.user_id) return p.user_id === currentUserId ? "Você" : p.user_id.slice(0, 8);
+    return p.contact_jid?.split("@")[0] ?? "—";
+  }
+
+  function startEdit() {
+    setEditTitle(task!.title);
+    setEditDescription(task!.description ?? "");
+    setEditPriority(task!.priority);
+    setEditDueDate(task!.due_date ?? "");
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    if (!editTitle.trim() || savingEdit) return;
+    setSavingEdit(true);
+    await onUpdate({
+      title: editTitle.trim(),
+      description: editDescription.trim() || null,
+      priority: editPriority as Task["priority"],
+      due_date: editDueDate || null,
+    });
+    setSavingEdit(false);
+    setEditing(false);
+  }
 
   async function handleSend() {
     if (!composer.trim() || sending) return;
@@ -78,18 +117,14 @@ export function TaskDetailModal({
     }
   }
 
-  const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(task.status) + 1];
-
   function hasResponded(p: TaskParticipant): boolean {
-    if (!p.contact_jid) return true; // internos sempre considerados "ok"
-    // Match by contact_jid prefix vs. from_jid isn't available on ThreadItem;
-    // approximate with name comparison when possible. Conservative: we
-    // consider them "não respondeu" if their join succeeded but no thread
-    // item shares their contact_jid prefix.
+    if (!p.contact_jid) return true;
     const prefix = p.contact_jid.split("@")[0];
     return respondedNames.has(prefix.toLowerCase()) ||
       Array.from(respondedNames).some((n) => n.includes(prefix));
   }
+
+  const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(task.status) + 1];
 
   return (
     <div className="wa-modal-overlay" onClick={onClose}>
@@ -113,8 +148,81 @@ export function TaskDetailModal({
               {groupJid ? ` · grupo WhatsApp ativo` : ""}
             </div>
           </div>
+          <button
+            onClick={startEdit}
+            style={{ background: "transparent", border: "none", color: "#8696a0", fontSize: 13, cursor: "pointer", padding: "4px 8px", marginRight: 4 }}
+            title="Editar tarefa"
+          >
+            ✏️ Editar
+          </button>
           <button className="wa-modal-close" onClick={onClose}>×</button>
         </div>
+
+        {/* Edit panel */}
+        {editing && (
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ color: "#8696a0", fontSize: 11, display: "block", marginBottom: 3 }}>Título</label>
+                <input
+                  className="wa-modal-input"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  autoFocus
+                  style={{ margin: 0 }}
+                />
+              </div>
+              <div>
+                <label style={{ color: "#8696a0", fontSize: 11, display: "block", marginBottom: 3 }}>Prioridade</label>
+                <select
+                  className="wa-modal-input"
+                  value={editPriority}
+                  onChange={(e) => setEditPriority(e.target.value)}
+                  style={{ margin: 0, width: 120 }}
+                >
+                  {Object.entries(PRIORITY_LABEL).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ color: "#8696a0", fontSize: 11, display: "block", marginBottom: 3 }}>Prazo</label>
+                <input
+                  className="wa-modal-input"
+                  type="date"
+                  value={editDueDate}
+                  onChange={(e) => setEditDueDate(e.target.value)}
+                  style={{ margin: 0, width: 140 }}
+                />
+              </div>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <label style={{ color: "#8696a0", fontSize: 11, display: "block", marginBottom: 3 }}>Descrição</label>
+              <textarea
+                className="wa-modal-textarea"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                rows={2}
+                style={{ margin: 0 }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setEditing(false)}
+                style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: "#8696a0", padding: "5px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!editTitle.trim() || savingEdit}
+                style={{ background: "#00a884", border: "none", color: "#111b21", padding: "5px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: savingEdit ? 0.6 : 1 }}
+              >
+                {savingEdit ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {loading && <div style={{ color: "#8696a0", textAlign: "center", padding: 20 }}>Carregando...</div>}
 
@@ -126,7 +234,7 @@ export function TaskDetailModal({
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "0 8px" }}>
               {participants.map((p) => {
-                const label = p.contact_name || (p.contact_jid?.split("@")[0] ?? p.user_id?.slice(0, 8) ?? "—");
+                const label = participantLabel(p);
                 const isExternal = !!p.contact_jid;
                 const responded = hasResponded(p);
                 return (
@@ -362,7 +470,7 @@ export function TaskDetailModal({
             >
               <div className="wa-modal-header">
                 <span className="wa-modal-title">
-                  DM privada para {dmTarget.contact_jid?.split("@")[0]}
+                  DM privada para {participantLabel(dmTarget)}
                 </span>
                 <button className="wa-modal-close" onClick={() => setDmTarget(null)}>×</button>
               </div>

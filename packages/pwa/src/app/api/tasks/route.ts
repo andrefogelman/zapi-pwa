@@ -136,6 +136,7 @@ export async function POST(request: Request) {
   await supabase.from("task_participants").insert({
     task_id: task.id,
     user_id: user.id,
+    contact_name: (user.user_metadata?.full_name as string | undefined) || user.email || null,
     role: "owner",
   });
 
