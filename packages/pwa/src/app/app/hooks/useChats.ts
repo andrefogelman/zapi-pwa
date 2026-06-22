@@ -51,6 +51,7 @@ export function useChats(sessionId: string | null) {
     return () => clearTimeout(h);
   }, [searchInput]);
   const [activeTab, setActiveTab] = useState<ChatTab>("all");
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [otherContacts, setOtherContacts] = useState<OtherContact[]>([]);
 
   const reloadChats = useCallback(() => {
@@ -142,6 +143,9 @@ export function useChats(sessionId: string | null) {
     if (activeTab !== "all") {
       result = result.filter((c) => c.tab === activeTab);
     }
+    if (unreadOnly) {
+      result = result.filter((c) => c.isUnread);
+    }
     if (search) {
       const q = search.toLowerCase();
       result = result.filter((c) =>
@@ -156,7 +160,7 @@ export function useChats(sessionId: string | null) {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       return b.lastTs - a.lastTs;
     });
-  }, [allChats, activeTab, search]);
+  }, [allChats, activeTab, unreadOnly, search]);
 
   // When the user types a search term, also hit waclaw for address-book
   // contacts that don't have an active chat yet. Debounced 250ms.
@@ -198,6 +202,11 @@ export function useChats(sessionId: string | null) {
     channels: allChats.filter((c) => c.tab === "channels").length,
   }), [allChats]);
 
+  const unreadCount = useMemo(
+    () => allChats.filter((c) => c.isUnread).length,
+    [allChats],
+  );
+
   // Call when user opens a chat — persists to localStorage and clears the badge
   const markAsRead = useCallback((jid: string) => {
     if (!sessionId) return;
@@ -213,6 +222,8 @@ export function useChats(sessionId: string | null) {
     loading,
     search: searchInput,
     setSearch: setSearchInput,
-    activeTab, setActiveTab, tabCounts, markAsRead, reloadChats, otherContacts,
+    activeTab, setActiveTab, tabCounts,
+    unreadOnly, setUnreadOnly, unreadCount,
+    markAsRead, reloadChats, otherContacts,
   };
 }

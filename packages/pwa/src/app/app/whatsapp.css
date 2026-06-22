@@ -123,6 +123,61 @@
   color: #8696a0;
 }
 
+/* ===== Unread filter chip ===== */
+
+.wa-filter-bar {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  padding: 4px 12px 6px;
+  background: #111b21;
+}
+
+.wa-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 14px;
+  border: none;
+  border-radius: 20px;
+  background: #202c33;
+  color: #8696a0;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.wa-filter-chip:hover {
+  color: #e9edef;
+  background: #2a3942;
+}
+
+.wa-filter-chip.active {
+  background: #00a884;
+  color: #111b21;
+}
+
+.wa-filter-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+}
+
+.wa-filter-chip.active .wa-filter-chip-count {
+  background: rgba(0, 0, 0, 0.25);
+  color: #111b21;
+}
+
 /* ===== Tabs ===== */
 
 .wa-tabs {

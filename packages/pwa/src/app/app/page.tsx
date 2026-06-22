@@ -90,7 +90,7 @@ export default function AppMain() {
   );
   const sessionId = activeInstance?.waclaw_session_id || null;
 
-  const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, markAsRead, reloadChats, otherContacts } = useChats(sessionId);
+  const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, unreadOnly, setUnreadOnly, unreadCount, markAsRead, reloadChats, otherContacts } = useChats(sessionId);
   const { fetcher } = useWaclaw(sessionId);
 
   async function handleChatAction(action: ChatAction, chat: Chat) {
@@ -335,6 +335,9 @@ export default function AppMain() {
         onSignOut={() => { signOut(); window.location.href = "/login"; }}
         onOpenTasks={() => { setTasksMode(true); setSelectedChat(null); }}
         taskCount={tasks.filter((t) => t.status === "open" || t.status === "in_progress").length}
+        unreadOnly={unreadOnly}
+        onToggleUnreadOnly={() => setUnreadOnly((v) => !v)}
+        unreadCount={unreadCount}
       />
       <div className="wa-main">
         {tasksMode ? (

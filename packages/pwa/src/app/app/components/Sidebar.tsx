@@ -41,6 +41,9 @@ interface Props {
   onSignOut: () => void;
   onOpenTasks: () => void;
   taskCount: number;
+  unreadOnly: boolean;
+  onToggleUnreadOnly: () => void;
+  unreadCount: number;
 }
 
 const TABS: { key: ChatTab; label: string }[] = [
@@ -71,6 +74,9 @@ export function Sidebar({
   onSignOut,
   onOpenTasks,
   taskCount,
+  unreadOnly,
+  onToggleUnreadOnly,
+  unreadCount,
 }: Props) {
   const { settings } = useUserSettings();
   return (
@@ -138,6 +144,20 @@ export function Sidebar({
           )}
         </div>
       </div>
+
+      {!search && (
+        <div className="wa-filter-bar">
+          <button
+            className={`wa-filter-chip ${unreadOnly ? "active" : ""}`}
+            onClick={onToggleUnreadOnly}
+          >
+            Não lidas
+            {unreadCount > 0 && (
+              <span className="wa-filter-chip-count">{unreadCount}</span>
+            )}
+          </button>
+        </div>
+      )}
 
       <div className="wa-tabs">
         {TABS.map((t) => (
