@@ -138,6 +138,27 @@ export function useChats(sessionId: string | null) {
     reloadChats();
   }, [reloadChats]);
 
+  // Poll for new messages every 30 s, pausing when the tab is hidden.
+  useEffect(() => {
+    if (!ready) return;
+    let id: ReturnType<typeof setInterval>;
+    function tick() { reloadChats(); }
+    function onVisible() {
+      if (document.visibilityState === "visible") {
+        reloadChats();
+        id = setInterval(tick, 30_000);
+      } else {
+        clearInterval(id);
+      }
+    }
+    id = setInterval(tick, 30_000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [ready, reloadChats]);
+
   const filtered = useMemo(() => {
     let result = allChats;
     if (activeTab !== "all") {
@@ -213,9 +234,17 @@ export function useChats(sessionId: string | null) {
     const now = Math.floor(Date.now() / 1000);
     localStorage.setItem(readKey(sessionId, jid), String(now));
     setAllChats((prev) =>
-      prev.map((c) => (c.jid === jid ? { ...c, isUnread: false } : c))
+      prev.map((c) => (c.jid === jid ? { ...c, isUnread: false, manualUnread: false } : c))
     );
   }, [sessionId]);
+
+  // Call when user manually marks a chat as unread — updates badge immediately
+  // without waiting for the next poll.
+  const markAsManualUnread = useCallback((jid: string) => {
+    setAllChats((prev) =>
+      prev.map((c) => (c.jid === jid ? { ...c, isUnread: true, manualUnread: true } : c))
+    );
+  }, []);
 
   return {
     chats: filtered,
@@ -224,6 +253,6 @@ export function useChats(sessionId: string | null) {
     setSearch: setSearchInput,
     activeTab, setActiveTab, tabCounts,
     unreadOnly, setUnreadOnly, unreadCount,
-    markAsRead, reloadChats, otherContacts,
+    markAsRead, markAsManualUnread, reloadChats, otherContacts,
   };
 }

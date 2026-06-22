@@ -70,7 +70,7 @@ export default function AppMain() {
   const [infoChat, setInfoChat] = useState<Chat | null>(null);
   const [previewMsg, setPreviewMsg] = useState<Message | null>(null);
 
-  const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask, loadTasks } = useTasks();
+  const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask } = useTasks();
   const {
     task: taskDetail, loading: taskDetailLoading,
     removeParticipant, sendDirectMessage,
@@ -90,7 +90,7 @@ export default function AppMain() {
   );
   const sessionId = activeInstance?.waclaw_session_id || null;
 
-  const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, unreadOnly, setUnreadOnly, unreadCount, markAsRead, reloadChats, otherContacts } = useChats(sessionId);
+  const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, unreadOnly, setUnreadOnly, unreadCount, markAsRead, markAsManualUnread, reloadChats, otherContacts } = useChats(sessionId);
   const { fetcher } = useWaclaw(sessionId);
 
   async function handleChatAction(action: ChatAction, chat: Chat) {
@@ -112,6 +112,7 @@ export default function AppMain() {
           return;
         case "markUnread":
           await fetch(chatsBase, { method: "PATCH", headers, body: JSON.stringify({ manualUnread: true }) });
+          markAsManualUnread(chat.jid);
           break;
         case "markRead":
           await fetch(chatsBase, { method: "PATCH", headers, body: JSON.stringify({ manualUnread: false }) });
