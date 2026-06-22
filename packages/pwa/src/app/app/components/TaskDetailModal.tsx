@@ -5,14 +5,18 @@ import { TaskStatusBadge } from "./TaskStatusBadge";
 import { linkify } from "../lib/linkify";
 import type { Task, TaskParticipant } from "../hooks/useTasks";
 import { useTaskThread } from "../hooks/useTaskThread";
+import type { Chat } from "../hooks/useChats";
+import { formatChatName } from "../lib/formatters";
 
 interface Props {
   task: Task | null;
   loading: boolean;
   currentUserId?: string | null;
+  chats?: Chat[];
   onClose: () => void;
   onUpdateStatus: (status: string) => void;
   onUpdate: (updates: Partial<Pick<Task, "title" | "description" | "priority" | "due_date">>) => Promise<void>;
+  onAddParticipant: (input: { contact_jid: string; contact_name: string }) => Promise<void>;
   onRemoveParticipant: (id: string) => void;
   onSendDirectMessage: (contactJid: string, body: string) => Promise<boolean>;
   onDelete: () => void;
@@ -34,8 +38,8 @@ const PRIORITY_LABEL: Record<string, string> = {
 };
 
 export function TaskDetailModal({
-  task, loading, currentUserId, onClose,
-  onUpdateStatus, onUpdate, onRemoveParticipant, onSendDirectMessage, onDelete,
+  task, loading, currentUserId, chats = [], onClose,
+  onUpdateStatus, onUpdate, onAddParticipant, onRemoveParticipant, onSendDirectMessage, onDelete,
 }: Props) {
   const [composer, setComposer] = useState("");
   const [visibility, setVisibility] = useState<"all" | "internal">("all");
@@ -50,6 +54,8 @@ export function TaskDetailModal({
   const [editPriority, setEditPriority] = useState("medium");
   const [editDueDate, setEditDueDate] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
+  const [addingParticipant, setAddingParticipant] = useState(false);
 
   const participants = useMemo(() => (task?.task_participants ?? []) as TaskParticipant[], [task]);
   const externos = useMemo(() => participants.filter((p) => !!p.contact_jid), [participants]);
@@ -67,7 +73,26 @@ export function TaskDetailModal({
     return s;
   }, [items]);
 
+  const existingJids = useMemo(
+    () => new Set(participants.map((p) => p.contact_jid).filter(Boolean) as string[]),
+    [participants],
+  );
+
+  const filteredPicker = useMemo(() => {
+    const q = pickerSearch.trim().toLowerCase();
+    const dms = chats.filter((c) => !c.isGroup && !existingJids.has(c.jid));
+    if (!q) return dms.slice(0, 30);
+    return dms.filter((c) => c.name.toLowerCase().includes(q) || c.jid.includes(q)).slice(0, 30);
+  }, [chats, existingJids, pickerSearch]);
+
   if (!task) return null;
+
+  async function handleAddParticipant(chat: Chat) {
+    const name = formatChatName(chat.jid, chat.name);
+    setAddingParticipant(true);
+    await onAddParticipant({ contact_jid: chat.jid, contact_name: name });
+    setAddingParticipant(false);
+  }
 
   function participantLabel(p: TaskParticipant): string {
     if (p.contact_name) return p.contact_name;
@@ -206,12 +231,78 @@ export function TaskDetailModal({
                 style={{ margin: 0 }}
               />
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            {/* Participant management */}
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ color: "#8696a0", fontSize: 11, marginBottom: 6, fontWeight: 500 }}>
+                Membros externos
+              </div>
+              {participants.filter((p) => !!p.contact_jid).length === 0 && (
+                <div style={{ color: "#8696a0", fontSize: 12, marginBottom: 6 }}>Nenhum membro externo.</div>
+              )}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+                {participants.filter((p) => !!p.contact_jid).map((p) => (
+                  <span
+                    key={p.id}
+                    style={{
+                      background: p.join_failure ? "rgba(239,68,68,0.12)" : "rgba(0,168,132,0.12)",
+                      color: p.join_failure ? "#ef4444" : "#00a884",
+                      borderRadius: 999,
+                      padding: "3px 10px",
+                      fontSize: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                    }}
+                  >
+                    {participantLabel(p)}
+                    <button
+                      onClick={() => onRemoveParticipant(p.id)}
+                      style={{ background: "transparent", border: "none", color: "inherit", cursor: "pointer", padding: 0, fontSize: 13, lineHeight: 1 }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <input
+                className="wa-modal-input"
+                placeholder="Buscar contato para adicionar..."
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+                style={{ margin: 0, marginBottom: 4 }}
+              />
+              {pickerSearch && (
+                <div style={{ maxHeight: 150, overflowY: "auto", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 6 }}>
+                  {filteredPicker.length === 0 && (
+                    <div style={{ color: "#8696a0", fontSize: 12, padding: "8px 12px" }}>Nenhum contato encontrado.</div>
+                  )}
+                  {filteredPicker.map((c) => (
+                    <div
+                      key={c.jid}
+                      onClick={() => { handleAddParticipant(c); setPickerSearch(""); }}
+                      style={{
+                        padding: "7px 12px",
+                        cursor: addingParticipant ? "wait" : "pointer",
+                        fontSize: 13,
+                        color: "#e9edef",
+                        borderBottom: "1px solid rgba(255,255,255,0.04)",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      {formatChatName(c.jid, c.name)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
               <button
                 onClick={() => setEditing(false)}
                 style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: "#8696a0", padding: "5px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
               >
-                Cancelar
+                Fechar
               </button>
               <button
                 onClick={handleSave}

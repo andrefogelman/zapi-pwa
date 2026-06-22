@@ -73,7 +73,7 @@ export default function AppMain() {
   const { tasks, loading: tasksLoading, createTask, updateTask, deleteTask } = useTasks();
   const {
     task: taskDetail, loading: taskDetailLoading,
-    removeParticipant, sendDirectMessage,
+    addParticipant, removeParticipant, sendDirectMessage,
   } = useTaskDetail(selectedTask?.id || null);
 
 
@@ -427,6 +427,7 @@ export default function AppMain() {
         task={selectedTask ? taskDetail : null}
         loading={taskDetailLoading}
         currentUserId={session?.user.id}
+        chats={chats}
         onClose={() => setSelectedTask(null)}
         onUpdateStatus={(status) => {
           if (selectedTask) updateTask(selectedTask.id, { status: status as Task["status"] });
@@ -434,6 +435,7 @@ export default function AppMain() {
         onUpdate={async (updates) => {
           if (selectedTask) await updateTask(selectedTask.id, updates);
         }}
+        onAddParticipant={addParticipant}
         onRemoveParticipant={removeParticipant}
         onSendDirectMessage={sendDirectMessage}
         onDelete={async () => {

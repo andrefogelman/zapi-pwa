@@ -30,7 +30,7 @@ export async function POST(
   if (!parsed.success) {
     return Response.json({ error: "invalid payload", issues: parsed.error.issues }, { status: 400 });
   }
-  const { contact_jid, user_id, role } = parsed.data;
+  const { contact_jid, contact_name, user_id, role } = parsed.data;
   const supabase = getSupabaseServer();
 
   const { data: task } = await supabase
@@ -66,6 +66,7 @@ export async function POST(
       task_id: id,
       user_id: user_id ?? null,
       contact_jid: contact_jid ?? null,
+      contact_name: contact_name ?? null,
       instance_id: task?.wa_instance_id ?? null,
       role,
       joined_group_at: joinFailure ? null : new Date().toISOString(),
