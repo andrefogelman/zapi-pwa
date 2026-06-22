@@ -16,12 +16,6 @@ interface Props {
   onDelete: () => void;
 }
 
-function formatTs(iso: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-}
-
 const STATUS_FLOW = ["open", "in_progress", "resolved", "closed"];
 const STATUS_LABEL: Record<string, string> = {
   open: "Aberta",
@@ -132,7 +126,7 @@ export function TaskDetailModal({
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "0 8px" }}>
               {participants.map((p) => {
-                const label = p.contact_jid?.split("@")[0] ?? p.user_id?.slice(0, 8) ?? "—";
+                const label = p.contact_name || (p.contact_jid?.split("@")[0] ?? p.user_id?.slice(0, 8) ?? "—");
                 const isExternal = !!p.contact_jid;
                 const responded = hasResponded(p);
                 return (

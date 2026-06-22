@@ -27,6 +27,7 @@ export interface TaskParticipant {
   id: string;
   user_id: string | null;
   contact_jid: string | null;
+  contact_name?: string | null;
   instance_id: string | null;
   role: string;
   joined_group_at?: string | null;
@@ -111,6 +112,25 @@ export function useTasks() {
   }, [session?.access_token, headers]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
+
+  useEffect(() => {
+    let id: ReturnType<typeof setInterval>;
+    function tick() { loadTasks(); }
+    function onVisible() {
+      if (document.visibilityState === "visible") {
+        loadTasks();
+        id = setInterval(tick, 30_000);
+      } else {
+        clearInterval(id);
+      }
+    }
+    id = setInterval(tick, 30_000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [loadTasks]);
 
   return { tasks, loading, loadTasks, createTask, updateTask, deleteTask };
 }

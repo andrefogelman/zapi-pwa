@@ -70,7 +70,7 @@ export async function GET(request: Request) {
     .from("tasks")
     .select(`
       *,
-      task_participants(id, user_id, contact_jid, instance_id, role, joined_group_at, join_failure)
+      task_participants(id, user_id, contact_jid, contact_name, instance_id, role, joined_group_at, join_failure)
     `)
     .in("id", [...taskIds])
     .order("created_at", { ascending: false });
@@ -175,6 +175,7 @@ export async function POST(request: Request) {
           await supabase.from("task_participants").insert({
             task_id: task.id,
             contact_jid: p.contact_jid,
+            contact_name: p.contact_name ?? null,
             instance_id: instance.id,
             role: "member",
             joined_group_at: new Date().toISOString(),
