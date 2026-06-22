@@ -65,12 +65,13 @@ export function useChats(sessionId: string | null) {
           return !jid.includes("@newsletter") && jid !== "status@broadcast";
         });
 
-        // On first load for this session, check if we have ANY read-tracking entries.
-        // If none exist, this is the first time the user opens the app with this
-        // session — initialize all chats as "read" so only future messages trigger
-        // the unread indicator (avoids 78 chats all lighting up on first launch).
-        const firstLoad = sessionId
-          ? !visible.some((c) => localStorage.getItem(readKey(sessionId, c.jid as string)))
+        // On first load for this session, initialize all chats as "read" so only
+        // future messages trigger the unread indicator (avoids all chats lighting up
+        // on first launch). Use a sentinel key so this fires exactly once per session,
+        // even if early polls return an empty list while waclaw-go is reconnecting.
+        const sentinelKey = `wa-initialized:${sessionId}`;
+        const firstLoad = sessionId && visible.length > 0
+          ? !localStorage.getItem(sentinelKey)
           : false;
         if (firstLoad && sessionId) {
           for (const c of visible) {
@@ -78,6 +79,7 @@ export function useChats(sessionId: string | null) {
             const ts = (c.lastTs as number) || 0;
             if (ts > 0) localStorage.setItem(readKey(sessionId, jid), String(ts));
           }
+          localStorage.setItem(sentinelKey, "1");
         }
 
         // Dedup phone+lid representations of the same contact. The backend
