@@ -16,7 +16,7 @@ const CreateTaskSchema = z.object({
   title: z.string().trim().min(1).max(240),
   description: z.string().max(8_000).nullable().optional(),
   priority: PrioritySchema.optional(),
-  due_date: z.string().datetime().nullable().optional(),
+  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   // Optional: when supplied, the task spins up a WhatsApp group with these
   // participants and sends the invitation message.
   instance_id: z.string().uuid().optional(),

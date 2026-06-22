@@ -66,14 +66,18 @@ export function useTasks() {
     due_date?: string;
     instance_id?: string;
     participants?: { contact_jid: string; contact_name?: string }[];
-  }) => {
+  }): Promise<Task | null> => {
     if (!session?.access_token) return null;
     const res = await fetch("/api/tasks", {
       method: "POST",
       headers: headers(),
       body: JSON.stringify(input),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error("[createTask] failed", res.status, body);
+      return null;
+    }
     const data = await res.json();
     setTasks((prev) => [data.task, ...prev]);
     return data.task as Task;

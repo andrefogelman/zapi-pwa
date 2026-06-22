@@ -291,7 +291,7 @@ export default function AppMain() {
   }
 
   return (
-    <div className={`wa-app ${selectedChat ? "chat-open" : ""}`}>
+    <div className={`wa-app ${selectedChat || tasksMode ? "chat-open" : ""}`}>
       <Sidebar
         instances={instances}
         instancesLoading={instLoading}

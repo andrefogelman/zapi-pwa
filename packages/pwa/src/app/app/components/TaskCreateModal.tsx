@@ -18,7 +18,7 @@ interface Props {
     due_date?: string;
     instance_id?: string;
     participants?: { contact_jid: string; contact_name?: string }[];
-  }) => Promise<unknown>;
+  }) => Promise<{ id: string } | null>;
 }
 
 export function TaskCreateModal({
@@ -33,6 +33,7 @@ export function TaskCreateModal({
   const [pickerSearch, setPickerSearch] = useState("");
   const [selected, setSelected] = useState<Record<string, { jid: string; name: string }>>({});
   const [saving, setSaving] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const dmChats = useMemo(() => chats.filter((c) => !c.isGroup), [chats]);
   const filteredPicker = useMemo(() => {
@@ -48,11 +49,12 @@ export function TaskCreateModal({
   async function handleSubmit() {
     if (!title.trim() || saving) return;
     setSaving(true);
+    setCreateError(null);
     const participants = Object.values(selected).map((p) => ({
       contact_jid: p.jid,
       contact_name: p.name,
     }));
-    await onCreate({
+    const result = await onCreate({
       title: title.trim(),
       description: description.trim() || undefined,
       priority,
@@ -60,13 +62,18 @@ export function TaskCreateModal({
       instance_id: participants.length > 0 ? selectedInstance ?? undefined : undefined,
       participants: participants.length > 0 ? participants : undefined,
     });
+    setSaving(false);
+    if (!result) {
+      setCreateError("Erro ao criar tarefa. Verifique os dados e tente novamente.");
+      return;
+    }
     setTitle("");
     setDescription("");
     setPriority("medium");
     setDueDate("");
     setSelected({});
     setPickerOpen(false);
-    setSaving(false);
+    setCreateError(null);
     onClose();
   }
 
@@ -234,6 +241,11 @@ export function TaskCreateModal({
           </div>
         </div>
 
+        {createError && (
+          <div style={{ padding: "8px 20px", color: "#ff6b6b", fontSize: 13, background: "rgba(255,107,107,0.08)" }}>
+            {createError}
+          </div>
+        )}
         <div className="wa-modal-footer">
           <button className="wa-modal-secondary" onClick={onClose}>Cancelar</button>
           <button
