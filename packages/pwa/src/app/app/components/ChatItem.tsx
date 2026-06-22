@@ -91,7 +91,7 @@ function ChatItemImpl({ chat, selected, onClick, onContextMenu }: Props) {
         </div>
         <div className="wa-chat-row">
           <span className="wa-chat-preview">
-            {chat.lastSender && chat.isGroup ? `${chat.lastSender}: ` : ""}
+            {chat.lastSender && chat.isGroup && chat.lastMessage ? `${chat.lastSender}: ` : ""}
             {chat.lastMessage || "\u00A0"}
           </span>
           {chat.isUnread && (
