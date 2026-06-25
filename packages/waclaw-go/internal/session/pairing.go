@@ -11,6 +11,7 @@ import (
 
 	"github.com/andrefogelman/zapi-pwa/packages/waclaw-go/internal/store"
 	"go.mau.fi/whatsmeow"
+	waAppState "go.mau.fi/whatsmeow/appstate"
 	waStoreSQL "go.mau.fi/whatsmeow/store/sqlstore"
 	waevt "go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
@@ -183,7 +184,14 @@ func (s *Session) buildEventHandler() func(evt interface{}) {
 			// Copy contact full names from whatsmeow's session.db into our
 			// store. Covers contacts who are in the phone's address book but
 			// never sent a direct message to this session.
+			// Also schedule a delayed retry: on fresh QR pairings, the
+			// app-state sync (whatsmeow_contacts table) arrives seconds after
+			// Connected fires, so the immediate call may copy 0 names.
 			go s.backfillContactNamesFromWAStore()
+			go func() {
+				time.Sleep(60 * time.Second)
+				s.backfillContactNamesFromWAStore()
+			}()
 			// Resolve group subjects for groups whose name wasn't captured
 			// by history sync (legacy `<phone>-<timestamp>` chat IDs show up
 			// as raw JIDs in the UI without this).
@@ -191,6 +199,15 @@ func (s *Session) buildEventHandler() func(evt interface{}) {
 			// Re-enqueue media downloads that were dropped on previous runs
 			// when the in-memory queue overflowed during history-sync bursts.
 			go s.rehydratePendingDownloads(2000)
+		case *waevt.AppStateSyncComplete:
+			// When the contact-list patch completes, whatsmeow_contacts in
+			// session.db is now fully populated. Re-run the backfill so that
+			// newly synced contact names appear in waclaw.db immediately,
+			// even on a fresh QR pairing where Connected fired before the sync.
+			if v.Name == waAppState.WAPatchCriticalUnblockLow {
+				s.log.Info().Msg("contact app-state sync complete — refreshing contact names")
+				go s.backfillContactNamesFromWAStore()
+			}
 		case *waevt.GroupInfo:
 			s.handleGroupInfo(v)
 		case *waevt.Blocklist:
