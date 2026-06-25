@@ -36,7 +36,9 @@ async function timedFetch(url: string, init: RequestInit = {}): Promise<Response
 
 export interface WaclawSession {
   id: string;
-  status: "pending" | "connecting" | "connected" | "disconnected";
+  state: "new" | "connecting" | "waiting_qr" | "connected" | "disconnected" | "logged_out";
+  connected: boolean;
+  storePath?: string;
   phone?: string;
 }
 

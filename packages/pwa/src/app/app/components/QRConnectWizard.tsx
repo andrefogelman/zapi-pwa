@@ -44,12 +44,20 @@ export function QRConnectWizard({
       const instance = await createRes.json();
       setInstanceId(instance.id);
 
-      const qrRes = await fetch(`/api/instances/${instance.id}/qr`, {
-        headers: { Authorization: `Bearer ${token}` },
+      // POST /auth triggers the WhatsApp connection and waits up to 20 s for
+      // a QR code to become available. GET /qr only returns data AFTER auth
+      // has been called, so calling it first would always return state=new.
+      const authRes = await fetch(`/api/waclaw/sessions/${instance.waclaw_session_id}/auth`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       });
-      if (!qrRes.ok) throw new Error(await qrRes.text());
-      const qrJson: QRPayload = await qrRes.json();
-      setQr(qrJson);
+      if (!authRes.ok) throw new Error(`Auth falhou (HTTP ${authRes.status})`);
+      const authData = await authRes.json();
+      if (!authData.qr) throw new Error("Nenhum QR code recebido do servidor");
+      setQr({ qr: authData.qr, format: "string" });
       setStep("qr");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -70,7 +78,7 @@ export function QRConnectWizard({
         });
         if (!res.ok) return; // transient error — let the next tick retry
         const data = await res.json();
-        if (data.status === "connected") {
+        if (data.connected || data.state === "connected") {
           setStep("connected");
           clearInterval(interval);
           setTimeout(() => onDoneAction(instanceId), 1500);

@@ -27,7 +27,7 @@ export async function GET(
 
   try {
     const session = await getSessionStatus(instance.waclaw_session_id);
-    if (session.status === "connected" && session.phone) {
+    if (session.connected && session.phone) {
       // LID-addressed sessions return "<digits>@lid" instead of a phone number.
       // Split into separate columns so downstream code never has to guess.
       const isLid = session.phone.endsWith("@lid");
