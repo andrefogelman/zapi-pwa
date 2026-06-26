@@ -35,12 +35,19 @@ export async function POST(
 
   const { data: task } = await supabase
     .from("tasks")
-    .select("title, description, wa_group_jid, wa_instance_id, instances:wa_instance_id(waclaw_session_id)")
+    .select("title, description, wa_group_jid, wa_instance_id")
     .eq("id", id)
     .single();
-  let inst = Array.isArray(task?.instances) ? task?.instances?.[0] : task?.instances;
-  let sessionId = (inst as { waclaw_session_id: string | null } | undefined)?.waclaw_session_id ?? null;
+  let sessionId: string | null = null;
   let waInstanceId: string | null = task?.wa_instance_id ?? null;
+  if (waInstanceId) {
+    const { data: instData } = await supabase
+      .from("instances")
+      .select("waclaw_session_id")
+      .eq("id", waInstanceId)
+      .single();
+    sessionId = instData?.waclaw_session_id ?? null;
+  }
 
   // If no session bound to the task yet, fall back to the user's first active instance.
   if (contact_jid && !sessionId) {

@@ -31,7 +31,7 @@ export async function GET(
   const supabase = getSupabaseServer();
   const { data: task } = await supabase
     .from("tasks")
-    .select("wa_group_jid, wa_instance_id, instances:wa_instance_id(waclaw_session_id)")
+    .select("wa_group_jid, wa_instance_id")
     .eq("id", id)
     .single();
 
@@ -69,8 +69,15 @@ export async function GET(
   }
 
   // Group messages, when the task has a WA group
-  const inst = Array.isArray(task?.instances) ? task?.instances?.[0] : task?.instances;
-  const sessionId = (inst as { waclaw_session_id: string | null } | undefined)?.waclaw_session_id ?? null;
+  let sessionId: string | null = null;
+  if (task?.wa_instance_id) {
+    const { data: instData } = await supabase
+      .from("instances")
+      .select("waclaw_session_id")
+      .eq("id", task.wa_instance_id)
+      .single();
+    sessionId = instData?.waclaw_session_id ?? null;
+  }
   if (task?.wa_group_jid && sessionId) {
     try {
       const msgsRes = await fetch(
@@ -145,11 +152,18 @@ export async function POST(
   // internal comment so the message isn't silently dropped.
   const { data: task } = await supabase
     .from("tasks")
-    .select("wa_group_jid, wa_instance_id, instances:wa_instance_id(waclaw_session_id)")
+    .select("wa_group_jid, wa_instance_id")
     .eq("id", id)
     .single();
-  const inst = Array.isArray(task?.instances) ? task?.instances?.[0] : task?.instances;
-  const sessionId = (inst as { waclaw_session_id: string | null } | undefined)?.waclaw_session_id ?? null;
+  let sessionId: string | null = null;
+  if (task?.wa_instance_id) {
+    const { data: instData } = await supabase
+      .from("instances")
+      .select("waclaw_session_id")
+      .eq("id", task.wa_instance_id)
+      .single();
+    sessionId = instData?.waclaw_session_id ?? null;
+  }
   if (!task?.wa_group_jid || !sessionId) {
     return Response.json(
       { error: "task has no WhatsApp group; use visibility=internal" },

@@ -34,11 +34,18 @@ export async function POST(
   const supabase = getSupabaseServer();
   const { data: task } = await supabase
     .from("tasks")
-    .select("wa_instance_id, instances:wa_instance_id(waclaw_session_id)")
+    .select("wa_instance_id")
     .eq("id", id)
     .single();
-  const inst = Array.isArray(task?.instances) ? task?.instances?.[0] : task?.instances;
-  let sessionId = (inst as { waclaw_session_id: string | null } | undefined)?.waclaw_session_id ?? null;
+  let sessionId: string | null = null;
+  if (task?.wa_instance_id) {
+    const { data: instData } = await supabase
+      .from("instances")
+      .select("waclaw_session_id")
+      .eq("id", task.wa_instance_id)
+      .single();
+    sessionId = instData?.waclaw_session_id ?? null;
+  }
 
   // Fall back to the user's first active instance when the task has no bound instance.
   if (!sessionId) {
