@@ -250,6 +250,7 @@ export function useChats(sessionId: string | null) {
 
   return {
     chats: filtered,
+    allChats,
     loading,
     search: searchInput,
     setSearch: setSearchInput,

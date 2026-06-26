@@ -90,7 +90,7 @@ export default function AppMain() {
   );
   const sessionId = activeInstance?.waclaw_session_id || null;
 
-  const { chats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, unreadOnly, setUnreadOnly, unreadCount, markAsRead, markAsManualUnread, reloadChats, otherContacts } = useChats(sessionId);
+  const { chats, allChats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, unreadOnly, setUnreadOnly, unreadCount, markAsRead, markAsManualUnread, reloadChats, otherContacts } = useChats(sessionId);
   const { fetcher } = useWaclaw(sessionId);
 
   async function handleChatAction(action: ChatAction, chat: Chat) {
@@ -419,7 +419,7 @@ export default function AppMain() {
         onClose={() => setTaskCreateOpen(false)}
         instances={instances}
         activeInstanceId={activeInstanceId}
-        chats={chats}
+        chats={allChats}
         onCreate={createTask}
       />
 
