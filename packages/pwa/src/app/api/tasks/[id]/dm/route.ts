@@ -32,16 +32,27 @@ export async function POST(
   const { contact_jid, body } = parsed.data;
 
   const supabase = getSupabaseServer();
-  // Verify the participant belongs to the task AND the task has a wa_instance_id.
   const { data: task } = await supabase
     .from("tasks")
     .select("wa_instance_id, instances:wa_instance_id(waclaw_session_id)")
     .eq("id", id)
     .single();
   const inst = Array.isArray(task?.instances) ? task?.instances?.[0] : task?.instances;
-  const sessionId = (inst as { waclaw_session_id: string | null } | undefined)?.waclaw_session_id ?? null;
+  let sessionId = (inst as { waclaw_session_id: string | null } | undefined)?.waclaw_session_id ?? null;
+
+  // Fall back to the user's first active instance when the task has no bound instance.
   if (!sessionId) {
-    return Response.json({ error: "task has no connected instance" }, { status: 400 });
+    const { data: fallback } = await supabase
+      .from("instances")
+      .select("waclaw_session_id")
+      .eq("user_id", user.id)
+      .not("waclaw_session_id", "is", null)
+      .limit(1)
+      .single();
+    sessionId = fallback?.waclaw_session_id ?? null;
+  }
+  if (!sessionId) {
+    return Response.json({ error: "no connected WhatsApp instance found" }, { status: 400 });
   }
 
   const { data: participant } = await supabase
