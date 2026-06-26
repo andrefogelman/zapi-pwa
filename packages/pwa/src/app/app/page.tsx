@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/lib/use-auth";
 import { Sidebar } from "./components/Sidebar";
@@ -92,6 +92,21 @@ export default function AppMain() {
 
   const { chats, allChats, loading: chatsLoading, search, setSearch, activeTab, setActiveTab, tabCounts, unreadOnly, setUnreadOnly, unreadCount, markAsRead, markAsManualUnread, reloadChats, otherContacts } = useChats(sessionId);
   const { fetcher } = useWaclaw(sessionId);
+
+  const searchPickerContacts = useCallback(async (q: string) => {
+    if (!q.trim()) return [];
+    try {
+      const data = await fetcher(`contacts/search?q=${encodeURIComponent(q.trim())}&limit=30`);
+      if (!Array.isArray(data)) return [];
+      const activeJids = new Set(allChats.map((c) => c.jid));
+      return (data as Record<string, unknown>[])
+        .filter((c) => !activeJids.has(c.jid as string) && !c.isGroup)
+        .map((c) => ({
+          jid: c.jid as string,
+          name: (c.full_name as string) || (c.push_name as string) || (c.name as string) || (c.phone as string) || (c.jid as string).split("@")[0],
+        }));
+    } catch { return []; }
+  }, [fetcher, allChats]);
 
   async function handleChatAction(action: ChatAction, chat: Chat) {
     if (!sessionId || !session?.access_token) return;
@@ -438,6 +453,7 @@ export default function AppMain() {
         onAddParticipant={addParticipant}
         onRemoveParticipant={removeParticipant}
         onSendDirectMessage={sendDirectMessage}
+        onSearchContacts={searchPickerContacts}
         onDelete={async () => {
           if (selectedTask) {
             await deleteTask(selectedTask.id);

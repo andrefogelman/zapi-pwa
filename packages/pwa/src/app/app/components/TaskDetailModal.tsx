@@ -1,12 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TaskStatusBadge } from "./TaskStatusBadge";
 import { linkify } from "../lib/linkify";
 import type { Task, TaskParticipant } from "../hooks/useTasks";
 import { useTaskThread } from "../hooks/useTaskThread";
 import type { Chat } from "../hooks/useChats";
 import { formatChatName } from "../lib/formatters";
+
+interface PickerContact {
+  jid: string;
+  name: string;
+}
 
 interface Props {
   task: Task | null;
@@ -19,6 +24,7 @@ interface Props {
   onAddParticipant: (input: { contact_jid: string; contact_name: string }) => Promise<void>;
   onRemoveParticipant: (id: string) => void;
   onSendDirectMessage: (contactJid: string, body: string) => Promise<boolean>;
+  onSearchContacts?: (q: string) => Promise<PickerContact[]>;
   onDelete: () => void;
 }
 
@@ -39,7 +45,7 @@ const PRIORITY_LABEL: Record<string, string> = {
 
 export function TaskDetailModal({
   task, loading, currentUserId, chats = [], onClose,
-  onUpdateStatus, onUpdate, onAddParticipant, onRemoveParticipant, onSendDirectMessage, onDelete,
+  onUpdateStatus, onUpdate, onAddParticipant, onRemoveParticipant, onSendDirectMessage, onSearchContacts, onDelete,
 }: Props) {
   const [composer, setComposer] = useState("");
   const [visibility, setVisibility] = useState<"all" | "internal">("all");
@@ -55,6 +61,8 @@ export function TaskDetailModal({
   const [editDueDate, setEditDueDate] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
+  const [pickerFocused, setPickerFocused] = useState(false);
+  const [pickerExtraContacts, setPickerExtraContacts] = useState<PickerContact[]>([]);
   const [addingParticipant, setAddingParticipant] = useState(false);
 
   const participants = useMemo(() => (task?.task_participants ?? []) as TaskParticipant[], [task]);
@@ -85,12 +93,29 @@ export function TaskDetailModal({
     return dms.filter((c) => c.name.toLowerCase().includes(q) || c.jid.includes(q)).slice(0, 30);
   }, [chats, existingJids, pickerSearch]);
 
+  // Search address-book contacts when typing (complements active chats)
+  useEffect(() => {
+    if (!onSearchContacts || !pickerSearch.trim()) {
+      setPickerExtraContacts([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      const results = await onSearchContacts(pickerSearch.trim());
+      if (!cancelled) {
+        const chatJids = new Set(filteredPicker.map((c) => c.jid));
+        setPickerExtraContacts(results.filter((c) => !existingJids.has(c.jid) && !chatJids.has(c.jid)));
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(handle); };
+  }, [pickerSearch, onSearchContacts, existingJids, filteredPicker]);
+
   if (!task) return null;
 
-  async function handleAddParticipant(chat: Chat) {
-    const name = formatChatName(chat.jid, chat.name);
+  async function handleAddParticipant(contact: { jid: string; name?: string | null }) {
+    const name = formatChatName(contact.jid, contact.name ?? "");
     setAddingParticipant(true);
-    await onAddParticipant({ contact_jid: chat.jid, contact_name: name });
+    await onAddParticipant({ contact_jid: contact.jid, contact_name: name });
     setAddingParticipant(false);
   }
 
@@ -269,17 +294,21 @@ export function TaskDetailModal({
                 placeholder="Buscar contato para adicionar..."
                 value={pickerSearch}
                 onChange={(e) => setPickerSearch(e.target.value)}
+                onFocus={() => setPickerFocused(true)}
+                onBlur={() => setTimeout(() => setPickerFocused(false), 150)}
                 style={{ margin: 0, marginBottom: 4 }}
               />
-              {pickerSearch && (
-                <div style={{ maxHeight: 150, overflowY: "auto", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 6 }}>
-                  {filteredPicker.length === 0 && (
-                    <div style={{ color: "#8696a0", fontSize: 12, padding: "8px 12px" }}>Nenhum contato encontrado.</div>
+              {(pickerFocused || pickerSearch) && (
+                <div style={{ maxHeight: 180, overflowY: "auto", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 6 }}>
+                  {filteredPicker.length === 0 && pickerExtraContacts.length === 0 && (
+                    <div style={{ color: "#8696a0", fontSize: 12, padding: "8px 12px" }}>
+                      {pickerSearch ? "Nenhum contato encontrado." : "Digite para buscar contatos..."}
+                    </div>
                   )}
                   {filteredPicker.map((c) => (
                     <div
                       key={c.jid}
-                      onClick={() => { handleAddParticipant(c); setPickerSearch(""); }}
+                      onMouseDown={() => { handleAddParticipant(c); setPickerSearch(""); setPickerFocused(false); }}
                       style={{
                         padding: "7px 12px",
                         cursor: addingParticipant ? "wait" : "pointer",
@@ -291,6 +320,26 @@ export function TaskDetailModal({
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
                       {formatChatName(c.jid, c.name)}
+                    </div>
+                  ))}
+                  {pickerExtraContacts.map((c) => (
+                    <div
+                      key={c.jid}
+                      onMouseDown={() => {
+                        handleAddParticipant(c);
+                        setPickerSearch(""); setPickerFocused(false);
+                      }}
+                      style={{
+                        padding: "7px 12px",
+                        cursor: addingParticipant ? "wait" : "pointer",
+                        fontSize: 13,
+                        color: "#e9edef",
+                        borderBottom: "1px solid rgba(255,255,255,0.04)",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      {c.name || c.jid.split("@")[0]}
                     </div>
                   ))}
                 </div>
