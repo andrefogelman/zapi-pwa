@@ -178,7 +178,7 @@ export async function POST(request: Request) {
             contact_jid: p.contact_jid,
             contact_name: p.contact_name ?? null,
             instance_id: instance.id,
-            role: "member",
+            role: "participant",
             joined_group_at: new Date().toISOString(),
           });
         }

@@ -8,7 +8,7 @@ const AddSchema = z.object({
   contact_jid: z.string().min(3).max(128).optional(),
   contact_name: z.string().max(128).optional(),
   user_id: z.string().uuid().optional(),
-  role: z.enum(["owner", "member", "observer"]).default("member"),
+  role: z.enum(["owner", "participant", "observer"]).default("participant"),
 }).refine((v) => !!(v.contact_jid || v.user_id), {
   message: "contact_jid or user_id required",
 });
