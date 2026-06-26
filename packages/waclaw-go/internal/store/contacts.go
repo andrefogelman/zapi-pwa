@@ -316,7 +316,8 @@ func (s *Store) MergeLIDChatsIntoPhone() (MergeLIDChatsResult, error) {
 		_ = s.db.QueryRow(`SELECT COUNT(*) FROM chats WHERE jid = ?`, p.phone).Scan(&existsPhone)
 		if existsPhone == 0 {
 			// Rename the LID chat to the phone JID.
-			_, _ = s.db.Exec(`UPDATE chats SET jid = ?, kind = 'dm' WHERE jid = ?`, p.phone, p.lid)
+			// Clear name if it equals the @lid JID (history sync stores JID as placeholder).
+			_, _ = s.db.Exec(`UPDATE chats SET jid = ?, kind = 'dm', name = CASE WHEN name = ? THEN NULL ELSE name END WHERE jid = ?`, p.phone, p.lid, p.lid)
 			_, _ = s.db.Exec(`UPDATE messages SET chat_jid = ? WHERE chat_jid = ?`, p.phone, p.lid)
 			_, _ = s.db.Exec(`UPDATE reactions SET chat_jid = ? WHERE chat_jid = ?`, p.phone, p.lid)
 			res.ChatsProcessed++

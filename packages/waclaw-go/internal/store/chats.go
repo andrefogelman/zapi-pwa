@@ -141,14 +141,17 @@ func (s *Store) GetChats() ([]Chat, error) {
 				 FROM contacts ct
 				 WHERE ct.jid = c.jid
 				    OR ct.jid = c.lid
-				    OR (c.lid IS NOT NULL AND (ct.lid = c.jid OR ct.lid = c.lid))
+				    OR ct.lid = c.jid
+				    OR (c.lid IS NOT NULL AND ct.lid = c.lid)
 				 ORDER BY
 				   CASE WHEN NULLIF(ct.full_name, '') IS NOT NULL THEN 0 ELSE 1 END,
 				   CASE WHEN NULLIF(ct.business_name, '') IS NOT NULL THEN 0 ELSE 1 END,
 				   CASE WHEN NULLIF(ct.push_name, '') IS NOT NULL THEN 0 ELSE 1 END,
 				   CASE WHEN ct.jid LIKE '%@s.whatsapp.net' THEN 0 ELSE 1 END
 				 LIMIT 1),
-				NULLIF(c.name, ''),
+				-- Skip c.name when it equals the JID (history sync stores the JID
+				-- as a placeholder instead of the real group subject/contact name).
+				NULLIF(CASE WHEN c.name = c.jid THEN '' ELSE c.name END, ''),
 				(SELECT NULLIF(m.chat_name, '') FROM messages m
 				 WHERE m.chat_jid = c.jid AND NULLIF(m.chat_name, '') IS NOT NULL
 				 ORDER BY m.ts DESC, m.rowid DESC LIMIT 1),

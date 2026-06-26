@@ -53,6 +53,40 @@ func (s *Session) passiveBackfillOnConnect(topN int, perChat int) {
 	s.log.Info().Int("chats", sent).Int("per_chat", perChat).Msg("passive backfill kicked off")
 }
 
+// backfillGroupNamesFromMessages seeds the groups table from the chat_name
+// column in messages. WhatsApp embeds the group subject in incoming group
+// messages; this sweep populates groups.name without any API calls, which
+// makes names available immediately after a fresh QR pairing before the
+// slower GetGroupInfo API backfill completes.
+func (s *Session) backfillGroupNamesFromMessages() {
+	if s.store == nil {
+		return
+	}
+	n, err := s.store.DB().Exec(`
+		INSERT OR IGNORE INTO groups (jid, name, updated_at)
+		SELECT chat_jid,
+		       (SELECT m2.chat_name FROM messages m2
+		        WHERE m2.chat_jid = m.chat_jid AND NULLIF(m2.chat_name,'') IS NOT NULL
+		        ORDER BY m2.ts DESC LIMIT 1),
+		       strftime('%s','now')
+		FROM messages m
+		WHERE NULLIF(chat_name,'') IS NOT NULL
+		  AND chat_jid LIKE '%@g.us'
+		GROUP BY chat_jid
+	`)
+	if err != nil {
+		s.log.Warn().Err(err).Msg("group name backfill (from messages): failed")
+		return
+	}
+	rows, _ := n.RowsAffected()
+
+	// Also clear chats.name where the history sync stored the raw JID as a
+	// placeholder — this lets GetChats COALESCE fall through to groups.name.
+	_, _ = s.store.DB().Exec(`UPDATE chats SET name = NULL WHERE name = jid AND kind = 'group'`)
+
+	s.log.Info().Int64("inserted", rows).Msg("group name backfill (from messages) done")
+}
+
 // backfillGroupNames fills in the groups.name column for groups whose subject
 // wasn't captured by history sync. Without this, legacy-format group chats
 // (local-part `<phone>-<timestamp>`) show up in the UI as raw JIDs.

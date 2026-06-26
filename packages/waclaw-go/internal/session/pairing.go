@@ -192,9 +192,9 @@ func (s *Session) buildEventHandler() func(evt interface{}) {
 				time.Sleep(60 * time.Second)
 				s.backfillContactNamesFromWAStore()
 			}()
-			// Resolve group subjects for groups whose name wasn't captured
-			// by history sync (legacy `<phone>-<timestamp>` chat IDs show up
-			// as raw JIDs in the UI without this).
+			// Fast pass: seed group names from messages.chat_name (no API calls).
+			go s.backfillGroupNamesFromMessages()
+			// Slow pass: fill remaining unnamed groups via GetGroupInfo API.
 			go s.backfillGroupNames(500)
 			// Re-enqueue media downloads that were dropped on previous runs
 			// when the in-memory queue overflowed during history-sync bursts.
