@@ -35,28 +35,86 @@ export async function POST(
 
   const { data: task } = await supabase
     .from("tasks")
-    .select("wa_group_jid, wa_instance_id, instances:wa_instance_id(waclaw_session_id)")
+    .select("title, description, wa_group_jid, wa_instance_id, instances:wa_instance_id(waclaw_session_id)")
     .eq("id", id)
     .single();
-  const inst = Array.isArray(task?.instances) ? task?.instances?.[0] : task?.instances;
-  const sessionId = (inst as { waclaw_session_id: string | null } | undefined)?.waclaw_session_id ?? null;
+  let inst = Array.isArray(task?.instances) ? task?.instances?.[0] : task?.instances;
+  let sessionId = (inst as { waclaw_session_id: string | null } | undefined)?.waclaw_session_id ?? null;
+  let waInstanceId: string | null = task?.wa_instance_id ?? null;
 
+  // If no session bound to the task yet, fall back to the user's first active instance.
+  if (contact_jid && !sessionId) {
+    const { data: fallbackInst } = await supabase
+      .from("instances")
+      .select("id, waclaw_session_id")
+      .eq("user_id", user.id)
+      .not("waclaw_session_id", "is", null)
+      .limit(1)
+      .single();
+    if (fallbackInst?.waclaw_session_id) {
+      sessionId = fallbackInst.waclaw_session_id;
+      waInstanceId = fallbackInst.id;
+    }
+  }
+
+  let waGroupJid: string | null = task?.wa_group_jid ?? null;
   let joinFailure: string | null = null;
-  if (contact_jid && task?.wa_group_jid && sessionId) {
-    try {
-      const res = await fetch(
-        `${env.WACLAW_URL}/sessions/${sessionId}/groups/${encodeURIComponent(task.wa_group_jid)}/participants`,
-        {
-          method: "POST",
-          headers: { "X-API-Key": env.WACLAW_API_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({ add: [contact_jid] }),
-        },
-      );
-      if (!res.ok) {
-        joinFailure = (await res.text()).slice(0, 400);
+
+  if (contact_jid && sessionId) {
+    if (!waGroupJid) {
+      // No group yet — create one with this first external participant.
+      try {
+        const groupName = `falabem ${task?.title ?? ""}`.slice(0, 25);
+        const createRes = await fetch(
+          `${env.WACLAW_URL}/sessions/${sessionId}/groups/create`,
+          {
+            method: "POST",
+            headers: { "X-API-Key": env.WACLAW_API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ name: groupName, participants: [contact_jid] }),
+          },
+        );
+        if (createRes.ok) {
+          const body = await createRes.json();
+          waGroupJid = body.jid as string;
+          await supabase
+            .from("tasks")
+            .update({
+              wa_group_jid: waGroupJid,
+              wa_instance_id: waInstanceId,
+              wa_group_created_at: new Date().toISOString(),
+            })
+            .eq("id", id);
+          // Send invitation message into the group.
+          const header = `📋 *${task?.title ?? ""}*\n\nResponda para participar na resolução da tarefa.`;
+          const invitation = task?.description ? `${header}\n\n${task.description}` : header;
+          await fetch(`${env.WACLAW_URL}/sessions/${sessionId}/send`, {
+            method: "POST",
+            headers: { "X-API-Key": env.WACLAW_API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ to: waGroupJid, message: invitation }),
+          });
+        } else {
+          joinFailure = (await createRes.text()).slice(0, 400);
+        }
+      } catch (err) {
+        joinFailure = String(err).slice(0, 400);
       }
-    } catch (err) {
-      joinFailure = String(err).slice(0, 400);
+    } else {
+      // Group exists — add the participant to it.
+      try {
+        const res = await fetch(
+          `${env.WACLAW_URL}/sessions/${sessionId}/groups/${encodeURIComponent(waGroupJid)}/participants`,
+          {
+            method: "POST",
+            headers: { "X-API-Key": env.WACLAW_API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ add: [contact_jid] }),
+          },
+        );
+        if (!res.ok) {
+          joinFailure = (await res.text()).slice(0, 400);
+        }
+      } catch (err) {
+        joinFailure = String(err).slice(0, 400);
+      }
     }
   }
 
@@ -67,7 +125,7 @@ export async function POST(
       user_id: user_id ?? null,
       contact_jid: contact_jid ?? null,
       contact_name: contact_name ?? null,
-      instance_id: task?.wa_instance_id ?? null,
+      instance_id: waInstanceId,
       role,
       joined_group_at: joinFailure ? null : new Date().toISOString(),
       join_failure: joinFailure,

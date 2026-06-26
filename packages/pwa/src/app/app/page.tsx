@@ -427,7 +427,7 @@ export default function AppMain() {
         task={selectedTask ? taskDetail : null}
         loading={taskDetailLoading}
         currentUserId={session?.user.id}
-        chats={chats}
+        chats={allChats}
         onClose={() => setSelectedTask(null)}
         onUpdateStatus={(status) => {
           if (selectedTask) updateTask(selectedTask.id, { status: status as Task["status"] });
